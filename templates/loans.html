@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-{{ 'book-open' if current_user.role == 'member' else 'exchange-alt' }} me-2"></i>
+        {% if current_user.role == 'member' %}My Loans{% else %}Loan Management{% endif %}
+    </h2>
+    {% if current_user.role in ['admin', 'librarian'] %}
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLoanModal">
+        <i class="fas fa-plus me-2"></i>Create Loan
+    </button>
+    {% endif %}
+</div>
+
+{% if current_user.role in ['admin', 'librarian'] %}
+<!-- Filters for admin/librarian -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('loans') }}">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Filter by Status</label>
+                        <select class="form-control" name="status" onchange="this.form.submit()">
+                            <option value="">All Statuses</option>
+                            <option value="active" {% if request.args.get('status') == 'active' %}selected{% endif %}>Active</option>
+                            <option value="overdue" {% if request.args.get('status') == 'overdue' %}selected{% endif %}>Overdue</option>
+                            <option value="returned" {% if request.args.get('status') == 'returned' %}selected{% endif %}>Returned</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            {% if current_user.role == 'member' %}My Loan History{% else %}All Loans{% endif %}
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if loans %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        {% if current_user.role != 'member' %}
+                        <th>Member</th>
+                        {% endif %}
+                        <th>Book</th>
+                        <th>Loan Date</th>
+                        <th>Due Date</th>
+                        <th>Return Date</th>
+                        <th>Status</th>
+                        <th>Renewals</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    <tr class="{{ 'table-warning' if loan.is_overdue else '' }}">
+                        {% if current_user.role != 'member' %}
+                        <td>
+                            <strong>{{ loan.member.id }}</strong><br>
+                            <small class="text-muted">{{ loan.member.full_name }}</small>
+                        </td>
+                        {% endif %}
+                        <td>
+                            <strong>{{ loan.book.title }}</strong><br>
+                            <small class="text-muted">by {{ loan.book.author.name }}</small>
+                        </td>
+                        <td>{{ loan.loan_date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            {{ loan.due_date.strftime('%Y-%m-%d') }}
+                            {% if loan.is_overdue %}
+                            <br><small class="text-danger">{{ loan.days_overdue }} days overdue</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if loan.return_date %}
+                            {{ loan.return_date.strftime('%Y-%m-%d') }}
+                            {% else %}
+                            <span class="text-muted">Not returned</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if loan.status == 'active' else 'warning' if loan.status == 'returned' else 'danger' }}">
+                                {{ loan.status|title }}
+                            </span>
+                        </td>
+                        <td>
+                            {{ loan.renewed_count }}/{{ loan.max_renewals }}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                {% if current_user.role == 'member' and loan.status == 'active' and loan.renewed_count < loan.max_renewals %}
+                                <button class="btn btn-sm btn-outline-primary renew-loan-btn" data-loan-id="{{ loan.id }}">
+                                    <i class="fas fa-redo me-1"></i>Renew
+                                </button>
+                                {% endif %}
+                                
+                                {% if current_user.role in ['admin', 'librarian'] and loan.return_date is none %}
+                                <button class="btn btn-sm btn-success return-loan-btn" data-loan-id="{{ loan.id }}">
+                                    <i class="fas fa-undo me-1"></i>Return
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Loans Found</h4>
+            <p class="text-muted">
+                {% if current_user.role == 'member' %}
+                You haven't borrowed any books yet.
+                {% else %}
+                No loans match the current filters.
+                {% endif %}
+            </p>
+            {% if current_user.role in ['admin', 'librarian'] %}
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLoanModal">
+                <i class="fas fa-plus me-2"></i>Create First Loan
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Loan Modal -->
+{% if current_user.role in ['admin', 'librarian'] %}
+<div class="modal fade" id="createLoanModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Create New Loan</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_loan') }}">
+                <div class="modal-body">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.member_id.label(class="form-label") }}
+                        {{ form.member_id(class="form-control") }}
+                        {% if form.member_id.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.member_id.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.book_id.label(class="form-label") }}
+                        {{ form.book_id(class="form-control") }}
+                        {% if form.book_id.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.book_id.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.due_date.label(class="form-label") }}
+                        {{ form.due_date(class="form-control") }}
+                        {% if form.due_date.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.due_date.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Renew loan functionality
+    const renewButtons = document.querySelectorAll('.renew-loan-btn');
+    renewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const loanId = this.getAttribute('data-loan-id');
+            const button = this;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Renewing...';
+            button.disabled = true;
+            
+            fetch('{{ url_for("renew_loan") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    loan_id: loanId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    // Reload the page to show updated due dates
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-redo me-1"></i>Renew';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                showAlert('error', 'Network error. Please try again.');
+                button.innerHTML = '<i class="fas fa-redo me-1"></i>Renew';
+                button.disabled = false;
+            });
+        });
+    });
+    
+    // Return loan functionality for staff
+    const returnButtons = document.querySelectorAll('.return-loan-btn');
+    returnButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const loanId = this.getAttribute('data-loan-id');
+            const button = this;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Returning...';
+            button.disabled = true;
+            
+            fetch('{{ url_for("return_book") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    loan_id: loanId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    // Reload the page to show updated status
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-undo me-1"></i>Return';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                showAlert('error', 'Network error. Please try again.');
+                button.innerHTML = '<i class="fas fa-undo me-1"></i>Return';
+                button.disabled = false;
+            });
+        });
+    });
+    
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}

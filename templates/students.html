@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-users me-2"></i>Student Management</h2>
+    {% if current_user.role == 'admin' %}
+    <div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+            <i class="fas fa-plus me-2"></i>Add Student
+        </button>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#enrollStudentModal">
+            <i class="fas fa-user-plus me-2"></i>Enroll Student
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Student List</h5>
+    </div>
+    <div class="card-body">
+        {% if students %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Program</th>
+                        <th>Year</th>
+                        <th>GPA</th>
+                        <th>Enrolled Courses</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td><strong>{{ student.id }}</strong></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-user text-white"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold">{{ student.full_name }}</div>
+                                    <small class="text-muted">{{ student.phone }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ student.email }}</td>
+                        <td>{{ student.program }}</td>
+                        <td>
+                            <span class="badge bg-primary rounded-pill">{{ student.year_level }}</span>
+                        </td>
+                        <td>
+                            <span class="fw-bold {{ 'text-success' if student.gpa >= 3.0 else 'text-warning' if student.gpa >= 2.0 else 'text-danger' }}">
+                                {{ student.gpa }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ student.enrolled_courses|length }}</span>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('generate_transcript', student_id=student.id) }}" class="btn btn-sm btn-outline-info" title="Generate Transcript">
+                                    <i class="fas fa-file-pdf"></i>
+                                </a>
+                                {% if current_user.role == 'admin' %}
+                                <button class="btn btn-sm btn-outline-success enroll-single-btn" 
+                                        data-student-id="{{ student.id }}"
+                                        data-student-name="{{ student.full_name }}"
+                                        title="Enroll in Course">
+                                    <i class="fas fa-user-plus"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+            <p class="text-muted">No students found.</p>
+            {% if current_user.role == 'admin' %}
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+                <i class="fas fa-plus me-2"></i>Add First Student
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Student Modal -->
+{% if current_user.role == 'admin' %}
+<div class="modal fade" id="addStudentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Add New Student</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_student') }}">
+                <div class="modal-body">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.username.label(class="form-label") }}
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                    {{ form.username(class="form-control") }}
+                                </div>
+                                {% if form.username.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.username.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.password.label(class="form-label") }}
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    {{ form.password(class="form-control") }}
+                                </div>
+                                {% if form.password.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.password.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.first_name.label(class="form-label") }}
+                                {{ form.first_name(class="form-control") }}
+                                {% if form.first_name.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.first_name.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.last_name.label(class="form-label") }}
+                                {{ form.last_name(class="form-control") }}
+                                {% if form.last_name.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.last_name.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label") }}
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                            {{ form.email(class="form-control") }}
+                        </div>
+                        {% if form.email.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.email.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.phone.label(class="form-label") }}
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-phone"></i></span>
+                            {{ form.phone(class="form-control") }}
+                        </div>
+                        {% if form.phone.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.phone.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                {{ form.program.label(class="form-label") }}
+                                {{ form.program(class="form-control") }}
+                                {% if form.program.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.program.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                {{ form.year_level.label(class="form-label") }}
+                                {{ form.year_level(class="form-control") }}
+                                {% if form.year_level.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.year_level.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Enroll Student Modal -->
+<div class="modal fade" id="enrollStudentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Enroll Student in Course</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('enroll_student') }}">
+                <div class="modal-body">
+                    {{ enrollment_form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ enrollment_form.student_id.label(class="form-label") }}
+                        {{ enrollment_form.student_id(class="form-control") }}
+                        {% if enrollment_form.student_id.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in enrollment_form.student_id.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ enrollment_form.course_id.label(class="form-label") }}
+                        {{ enrollment_form.course_id(class="form-control") }}
+                        {% if enrollment_form.course_id.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in enrollment_form.course_id.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ enrollment_form.submit(class="btn btn-success") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Enroll Single Student Modal -->
+<div class="modal fade" id="enrollSingleStudentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Enroll Student in Course</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="enrollSingleStudentForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Student</label>
+                        <input type="text" class="form-control" id="selectedStudentName" readonly>
+                        <input type="hidden" id="selectedStudentId">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="singleCourseSelect" class="form-label">Course</label>
+                        <select class="form-control" id="singleCourseSelect">
+                            <option value="">Select Course</option>
+                            {% for course_id, course_name in enrollment_form.course_id.choices %}
+                            <option value="{{ course_id }}">{{ course_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="enrollSingleStudentBtn">Enroll Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if current_user.role == 'admin' %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle single student enrollment button clicks
+    const enrollSingleButtons = document.querySelectorAll('.enroll-single-btn');
+    const enrollSingleModal = new bootstrap.Modal(document.getElementById('enrollSingleStudentModal'));
+    
+    enrollSingleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const studentId = this.getAttribute('data-student-id');
+            const studentName = this.getAttribute('data-student-name');
+            
+            document.getElementById('selectedStudentName').value = studentName;
+            document.getElementById('selectedStudentId').value = studentId;
+            
+            enrollSingleModal.show();
+        });
+    });
+    
+    // Handle single student enrollment form submission
+    document.getElementById('enrollSingleStudentBtn').addEventListener('click', function() {
+        const studentId = document.getElementById('selectedStudentId').value;
+        const courseId = document.getElementById('singleCourseSelect').value;
+        
+        if (!courseId) {
+            showAlert('error', 'Please select a course.');
+            return;
+        }
+        
+        const button = this;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enrolling...';
+        button.disabled = true;
+        
+        fetch('{{ url_for("enroll_student") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                student_id: studentId,
+                course_id: courseId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                enrollSingleModal.hide();
+                // Reload the page to show updated enrollment count
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showAlert('error', data.message);
+                button.innerHTML = 'Enroll Student';
+                button.disabled = false;
+            }
+        })
+        .catch(error => {
+            showAlert('error', 'Network error. Please try again.');
+            button.innerHTML = 'Enroll Student';
+            button.disabled = false;
+        });
+    });
+    
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

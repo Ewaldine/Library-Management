@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-{{ 'money-bill-wave' if current_user.role == 'member' else 'exclamation-triangle' }} me-2"></i>
+        {% if current_user.role == 'member' %}My Fines{% else %}Fine Management{% endif %}
+    </h2>
+</div>
+
+{% if current_user.role in ['admin', 'librarian'] %}
+<!-- Filters for admin/librarian -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('fines') }}">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Filter by Status</label>
+                        <select class="form-control" name="status" onchange="this.form.submit()">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {% if request.args.get('status') == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="paid" {% if request.args.get('status') == 'paid' %}selected{% endif %}>Paid</option>
+                            <option value="waived" {% if request.args.get('status') == 'waived' %}selected{% endif %}>Waived</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>
+            {% if current_user.role == 'member' %}My Fine History{% else %}All Fines{% endif %}
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if fines %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        {% if current_user.role != 'member' %}
+                        <th>Member</th>
+                        {% endif %}
+                        <th>Book</th>
+                        <th>Reason</th>
+                        <th>Amount</th>
+                        <th>Issued Date</th>
+                        <th>Paid Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fine in fines %}
+                    <tr class="{{ 'table-warning' if fine.status == 'pending' else 'table-success' if fine.status == 'paid' else '' }}">
+                        {% if current_user.role != 'member' %}
+                        <td>
+                            <strong>{{ fine.member.id }}</strong><br>
+                            <small class="text-muted">{{ fine.member.full_name }}</small>
+                        </td>
+                        {% endif %}
+                        <td>
+                            {% if fine.loan and fine.loan.book %}
+                            <strong>{{ fine.loan.book.title }}</strong><br>
+                            <small class="text-muted">by {{ fine.loan.book.author.name }}</small>
+                            {% else %}
+                            <span class="text-muted">Book information not available</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-capitalize">{{ fine.reason }}</td>
+                        <td class="fw-bold text-danger">${{ "%.2f"|format(fine.amount) }}</td>
+                        <td>{{ fine.issued_date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            {% if fine.paid_date %}
+                            {{ fine.paid_date.strftime('%Y-%m-%d') }}
+                            {% else %}
+                            <span class="text-muted">Not paid</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'warning' if fine.status == 'pending' else 'success' if fine.status == 'paid' else 'secondary' }}">
+                                {{ fine.status|title }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                {% if current_user.role == 'member' and fine.status == 'pending' %}
+                                <button class="btn btn-sm btn-success pay-fine-btn" data-fine-id="{{ fine.id }}">
+                                    <i class="fas fa-credit-card me-1"></i>Pay
+                                </button>
+                                {% endif %}
+                                
+                                {% if current_user.role in ['admin', 'librarian'] and fine.status == 'pending' %}
+                                <button class="btn btn-sm btn-outline-warning" title="Waive Fine">
+                                    <i class="fas fa-hand-holding-usd"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Summary for member -->
+        {% if current_user.role == 'member' %}
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-danger">${{ "%.2f"|format(fines|selectattr('status', 'equalto', 'pending')|map(attribute='amount')|sum) }}</h4>
+                        <p class="mb-0 text-muted">Total Pending Fines</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-success">${{ "%.2f"|format(fines|selectattr('status', 'equalto', 'paid')|map(attribute='amount')|sum) }}</h4>
+                        <p class="mb-0 text-muted">Total Paid Fines</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-money-bill-wave fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Fines Found</h4>
+            <p class="text-muted">
+                {% if current_user.role == 'member' %}
+                You don't have any fines at the moment.
+                {% else %}
+                No fines match the current filters.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Pay fine functionality
+    const payFineButtons = document.querySelectorAll('.pay-fine-btn');
+    payFineButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const fineId = this.getAttribute('data-fine-id');
+            const button = this;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Paying...';
+            button.disabled = true;
+            
+            fetch('{{ url_for("pay_fine") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    fine_id: fineId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    // Reload the page to show updated fines
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-credit-card me-1"></i>Pay';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                showAlert('error', 'Network error. Please try again.');
+                button.innerHTML = '<i class="fas fa-credit-card me-1"></i>Pay';
+                button.disabled = false;
+            });
+        });
+    });
+    
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}

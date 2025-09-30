@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-book me-2"></i>Book Catalog</h2>
+    {% if current_user.role in ['admin', 'librarian'] %}
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBookModal">
+        <i class="fas fa-plus me-2"></i>Add Book
+    </button>
+    {% endif %}
+</div>
+
+<!-- Search and Filter Form -->
+<div class="card search-form mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('books') }}">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Search Books</label>
+                        <input type="text" class="form-control" name="search" value="{{ search_query }}" 
+                               placeholder="Search by title, author, or ISBN...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-control" name="category">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if category_filter == category.id|string %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label">Author</label>
+                        <select class="form-control" name="author">
+                            <option value="">All Authors</option>
+                            {% for author in authors %}
+                            <option value="{{ author.id }}" {% if author_filter == author.id|string %}selected{% endif %}>
+                                {{ author.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-1"></i>Search
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    {% for book in books %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card book-card h-100">
+            <div class="card-header position-relative">
+                <h6 class="mb-0 text-truncate">{{ book.title }}</h6>
+                <span class="availability-badge badge bg-{{ 'success' if book.is_available else 'danger' }}">
+                    {{ book.availability_status }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">by {{ book.author.name }}</small>
+                </div>
+                
+                <p class="card-text small text-muted mb-3">
+                    {{ book.description|truncate(120) or 'No description available.' }}
+                </p>
+                
+                <div class="book-details">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>ISBN</span>
+                        <span>{{ book.isbn }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Publisher</span>
+                        <span>{{ book.publisher.name }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Category</span>
+                        <span>{{ book.category.name }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Year</span>
+                        <span>{{ book.publication_year or 'N/A' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted mb-3">
+                        <span>Available</span>
+                        <span>{{ book.available_copies }}/{{ book.total_copies }}</span>
+                    </div>
+                </div>
+                
+                {% if book.location %}
+                <div class="alert alert-info small py-2 mb-3">
+                    <i class="fas fa-map-marker-alt me-1"></i>
+                    <strong>Location:</strong> {{ book.location }}
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        {{ book.edition or '1st Edition' }}
+                    </small>
+                    <div class="btn-group">
+                        {% if current_user.role == 'member' and book.is_available %}
+                        <button class="btn btn-sm btn-primary borrow-btn" data-book-id="{{ book.id }}">
+                            <i class="fas fa-bookmark me-1"></i>Borrow
+                        </button>
+                        {% endif %}
+                        {% if current_user.role in ['admin', 'librarian'] %}
+                        <button class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Books Found</h4>
+            <p class="text-muted">
+                {% if search_query or category_filter or author_filter %}
+                Try adjusting your search criteria.
+                {% else %}
+                No books available in the library yet.
+                {% endif %}
+            </p>
+            {% if current_user.role in ['admin', 'librarian'] %}
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBookModal">
+                <i class="fas fa-plus me-2"></i>Add First Book
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Add Book Modal -->
+{% if current_user.role in ['admin', 'librarian'] %}
+<div class="modal fade" id="addBookModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Add New Book</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_book') }}">
+                <div class="modal-body">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.isbn.label(class="form-label") }}
+                                {{ form.isbn(class="form-control") }}
+                                {% if form.isbn.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.isbn.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.title.label(class="form-label") }}
+                                {{ form.title(class="form-control") }}
+                                {% if form.title.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.title.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                {{ form.edition.label(class="form-label") }}
+                                {{ form.edition(class="form-control") }}
+                                {% if form.edition.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.edition.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                {{ form.publication_year.label(class="form-label") }}
+                                {{ form.publication_year(class="form-control") }}
+                                {% if form.publication_year.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.publication_year.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                {{ form.pages.label(class="form-label") }}
+                                {{ form.pages(class="form-control") }}
+                                {% if form.pages.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.pages.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                {{ form.author_id.label(class="form-label") }}
+                                {{ form.author_id(class="form-control") }}
+                                {% if form.author_id.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.author_id.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                {{ form.publisher_id.label(class="form-label") }}
+                                {{ form.publisher_id(class="form-control") }}
+                                {% if form.publisher_id.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.publisher_id.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                {{ form.category_id.label(class="form-label") }}
+                                {{ form.category_id(class="form-control") }}
+                                {% if form.category_id.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.category_id.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control") }}
+                        {% if form.description.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.description.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.total_copies.label(class="form-label") }}
+                                {{ form.total_copies(class="form-control") }}
+                                {% if form.total_copies.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.total_copies.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.location.label(class="form-label") }}
+                                {{ form.location(class="form-control") }}
+                                {% if form.location.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.location.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if current_user.role == 'member' %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const borrowButtons = document.querySelectorAll('.borrow-btn');
+    borrowButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const bookId = this.getAttribute('data-book-id');
+            const button = this;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Borrowing...';
+            button.disabled = true;
+            
+            fetch('{{ url_for("borrow_book") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    book_id: bookId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    // Update the availability status
+                    const card = button.closest('.card');
+                    const badge = card.querySelector('.availability-badge');
+                    badge.className = 'availability-badge badge bg-danger';
+                    badge.textContent = 'Checked Out';
+                    button.remove();
+                } else {
+                    showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-bookmark me-1"></i>Borrow';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                showAlert('error', 'Network error. Please try again.');
+                button.innerHTML = '<i class="fas fa-bookmark me-1"></i>Borrow';
+                button.disabled = false;
+            });
+        });
+    });
+    
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

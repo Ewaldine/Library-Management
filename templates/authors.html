@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-user-edit me-2"></i>Author Management</h2>
+    {% if current_user.role in ['admin', 'librarian'] %}
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAuthorModal">
+        <i class="fas fa-plus me-2"></i>Add Author
+    </button>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Author List</h5>
+    </div>
+    <div class="card-body">
+        {% if authors %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Nationality</th>
+                        <th>Birth Date</th>
+                        <th>Books</th>
+                        <th>Biography</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for author in authors %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold">{{ author.name }}</div>
+                        </td>
+                        <td>{{ author.nationality or 'N/A' }}</td>
+                        <td>{{ author.birth_date.strftime('%Y-%m-%d') if author.birth_date else 'N/A' }}</td>
+                        <td>
+                            <span class="badge bg-primary">{{ author.books|length }}</span>
+                        </td>
+                        <td>
+                            {% if author.biography %}
+                            <span class="d-inline-block text-truncate" style="max-width: 200px;">
+                                {{ author.biography }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">No biography</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-info" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% if current_user.role in ['admin', 'librarian'] %}
+                                <button class="btn btn-sm btn-outline-warning" title="Edit Author">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-user-edit fa-3x text-muted mb-3"></i>
+            <p class="text-muted">No authors found.</p>
+            {% if current_user.role in ['admin', 'librarian'] %}
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAuthorModal">
+                <i class="fas fa-plus me-2"></i>Add First Author
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Author Modal -->
+{% if current_user.role in ['admin', 'librarian'] %}
+<div class="modal fade" id="addAuthorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Add New Author</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_author') }}">
+                <div class="modal-body">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                        {% if form.name.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.name.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.nationality.label(class="form-label") }}
+                                {{ form.nationality(class="form-control") }}
+                                {% if form.nationality.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.nationality.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.birth_date.label(class="form-label") }}
+                                {{ form.birth_date(class="form-control") }}
+                                {% if form.birth_date.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.birth_date.errors %}
+                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.biography.label(class="form-label") }}
+                        {{ form.biography(class="form-control") }}
+                        {% if form.biography.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.biography.errors %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

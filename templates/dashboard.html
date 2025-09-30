@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+
+{% block content %}
+    {% if current_user.role == 'member' %}
+        <!-- Member Dashboard -->
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-user me-2"></i>Member Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                                <i class="fas fa-user text-white" style="font-size: 2rem;"></i>
+                            </div>
+                            <h4 class="mt-3">{{ member.full_name }}</h4>
+                            <p class="text-muted">ID: {{ member.id }}</p>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-id-card me-2 text-primary"></i>Membership</span>
+                                <span class="badge bg-primary rounded-pill text-capitalize">{{ member.membership_type }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-book me-2 text-primary"></i>Current Loans</span>
+                                <span class="fw-bold">{{ member.current_loans_count }}/{{ member.max_books }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-money-bill-wave me-2 text-primary"></i>Pending Fines</span>
+                                <span class="fw-bold text-danger">${{ "%.2f"|format(member.total_fines_due) }}</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="fas fa-envelope me-2 text-primary"></i>Email</span>
+                                <small>{{ member.email }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card stat-card">
+                            <div class="card-body">
+                                <div class="number">{{ member.current_loans_count }}</div>
+                                <div class="label">Active Loans</div>
+                                <i class="fas fa-book-open mt-3 text-primary" style="font-size: 2rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card stat-card">
+                            <div class="card-body">
+                                <div class="number">${{ "%.2f"|format(member.total_fines_due) }}</div>
+                                <div class="label">Pending Fines</div>
+                                <i class="fas fa-money-bill-wave mt-3 text-danger" style="font-size: 2rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if active_loans %}
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-book-open me-2"></i>Active Loans</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Book Title</th>
+                                        <th>Due Date</th>
+                                        <th>Days Left</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for loan in active_loans %}
+                                    <tr>
+                                        <td>{{ loan.book.title }}</td>
+                                        <td>{{ loan.due_date.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            {% set days_left = (loan.due_date.date() - now.date()).days %}
+                                            <span class="badge bg-{{ 'success' if days_left > 3 else 'warning' if days_left > 0 else 'danger' }}">
+                                                {{ days_left }} days
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ 'success' if loan.status == 'active' else 'danger' }}">
+                                                {{ loan.status|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if loan.status == 'active' and loan.renewed_count < loan.max_renewals %}
+                                            <button class="btn btn-sm btn-outline-primary renew-loan-btn" data-loan-id="{{ loan.id }}">
+                                                <i class="fas fa-redo me-1"></i>Renew
+                                            </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if pending_fines %}
+                <div class="card mt-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Pending Fines</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Reason</th>
+                                        <th>Amount</th>
+                                        <th>Issued Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for fine in pending_fines %}
+                                    <tr>
+                                        <td>{{ fine.reason|title }}</td>
+                                        <td class="fw-bold text-danger">${{ "%.2f"|format(fine.amount) }}</td>
+                                        <td>{{ fine.issued_date.strftime('%Y-%m-%d') }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-success pay-fine-btn" data-fine-id="{{ fine.id }}">
+                                                <i class="fas fa-credit-card me-1"></i>Pay
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    {% elif current_user.role == 'librarian' %}
+        <!-- Librarian Dashboard -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ total_books }}</div>
+                        <div class="label">Total Books</div>
+                        <i class="fas fa-book mt-3 text-primary" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ total_members }}</div>
+                        <div class="label">Total Members</div>
+                        <i class="fas fa-users mt-3 text-info" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ active_loans }}</div>
+                        <div class="label">Active Loans</div>
+                        <i class="fas fa-book-open mt-3 text-success" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ overdue_loans }}</div>
+                        <div class="label">Overdue Loans</div>
+                        <i class="fas fa-exclamation-triangle mt-3 text-danger" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Loans</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_loans %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Member</th>
+                                            <th>Book</th>
+                                            <th>Loan Date</th>
+                                            <th>Due Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for loan in recent_loans %}
+                                        <tr>
+                                            <td>{{ loan.member.full_name }}</td>
+                                            <td>{{ loan.book.title }}</td>
+                                            <td>{{ loan.loan_date.strftime('%Y-%m-%d') }}</td>
+                                            <td>{{ loan.due_date.strftime('%Y-%m-%d') }}</td>
+                                            <td>
+                                                <span class="badge bg-{{ 'success' if loan.status == 'active' else 'warning' if loan.status == 'returned' else 'danger' }}">
+                                                    {{ loan.status|title }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No recent loans.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('books') }}" class="btn btn-outline-primary btn-block text-start">
+                                <i class="fas fa-book me-2"></i>Manage Books
+                            </a>
+                            <a href="{{ url_for('members') }}" class="btn btn-outline-info btn-block text-start">
+                                <i class="fas fa-users me-2"></i>Manage Members
+                            </a>
+                            <a href="{{ url_for('loans') }}" class="btn btn-outline-success btn-block text-start">
+                                <i class="fas fa-exchange-alt me-2"></i>Manage Loans
+                            </a>
+                            <a href="{{ url_for('fines') }}" class="btn btn-outline-danger btn-block text-start">
+                                <i class="fas fa-money-bill-wave me-2"></i>Manage Fines
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Overdue Alerts</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if overdue_loans > 0 %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                <strong>{{ overdue_loans }}</strong> loan(s) are overdue
+                            </div>
+                            <div class="alert alert-danger">
+                                <i class="fas fa-money-bill-wave me-2"></i>
+                                <strong>{{ pending_fines }}</strong> pending fine(s) need attention
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                                <p>No overdue loans</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Admin Dashboard -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ total_books }}</div>
+                        <div class="label">Total Books</div>
+                        <i class="fas fa-book mt-3 text-primary" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ total_members }}</div>
+                        <div class="label">Total Members</div>
+                        <i class="fas fa-users mt-3 text-info" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ total_authors }}</div>
+                        <div class="label">Total Authors</div>
+                        <i class="fas fa-user-edit mt-3 text-success" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="number">{{ total_publishers }}</div>
+                        <div class="label">Total Publishers</div>
+                        <i class="fas fa-building mt-3 text-warning" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Library Activities</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_activities %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Member</th>
+                                            <th>Book</th>
+                                            <th>Action</th>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for activity in recent_activities %}
+                                        <tr>
+                                            <td>{{ activity.member.full_name }}</td>
+                                            <td>{{ activity.book.title }}</td>
+                                            <td>
+                                                {% if activity.return_date %}
+                                                    Return
+                                                {% else %}
+                                                    Borrow
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ activity.loan_date.strftime('%Y-%m-%d') }}</td>
+                                            <td>
+                                                <span class="badge bg-{{ 'success' if activity.status == 'active' else 'warning' if activity.status == 'returned' else 'danger' }}">
+                                                    {{ activity.status|title }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No recent activities.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Administrative Tools</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('books') }}" class="btn btn-outline-primary btn-block text-start">
+                                <i class="fas fa-book me-2"></i>Manage Books
+                            </a>
+                            <a href="{{ url_for('members') }}" class="btn btn-outline-info btn-block text-start">
+                                <i class="fas fa-users me-2"></i>Manage Members
+                            </a>
+                            <a href="{{ url_for('authors') }}" class="btn btn-outline-success btn-block text-start">
+                                <i class="fas fa-user-edit me-2"></i>Manage Authors
+                            </a>
+                            <a href="{{ url_for('publishers') }}" class="btn btn-outline-warning btn-block text-start">
+                                <i class="fas fa-building me-2"></i>Manage Publishers
+                            </a>
+                            <a href="{{ url_for('categories') }}" class="btn btn-outline-secondary btn-block text-start">
+                                <i class="fas fa-tags me-2"></i>Manage Categories
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Renew loan functionality for members
+    const renewButtons = document.querySelectorAll('.renew-loan-btn');
+    renewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const loanId = this.getAttribute('data-loan-id');
+            const button = this;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Renewing...';
+            button.disabled = true;
+            
+            fetch('{{ url_for("renew_loan") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    loan_id: loanId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    // Reload the page to show updated due dates
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-redo me-1"></i>Renew';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                showAlert('error', 'Network error. Please try again.');
+                button.innerHTML = '<i class="fas fa-redo me-1"></i>Renew';
+                button.disabled = false;
+            });
+        });
+    });
+    
+    // Pay fine functionality
+    const payFineButtons = document.querySelectorAll('.pay-fine-btn');
+    payFineButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const fineId = this.getAttribute('data-fine-id');
+            const button = this;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Paying...';
+            button.disabled = true;
+            
+            fetch('{{ url_for("pay_fine") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    fine_id: fineId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    // Reload the page to show updated fines
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-credit-card me-1"></i>Pay';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                showAlert('error', 'Network error. Please try again.');
+                button.innerHTML = '<i class="fas fa-credit-card me-1"></i>Pay';
+                button.disabled = false;
+            });
+        });
+    });
+    
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}
