@@ -15,6 +15,7 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 import io
 import os
+from datetime import date
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
@@ -254,6 +255,10 @@ class AuthorForm(FlaskForm):
     nationality = StringField('Nationality', validators=[Length(max=100)],
                            render_kw={"placeholder": "Enter nationality", "class": "form-control"})
     submit = SubmitField('Add Author', render_kw={"class": "btn btn-success"})
+    
+    def validate_birth_date(self, field):
+        if field.data and field.data > date.today():
+            raise ValidationError('Birth date cannot be in the future.')
 
 class PublisherForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired(), Length(max=200)], 
@@ -267,6 +272,7 @@ class PublisherForm(FlaskForm):
     website = StringField('Website', validators=[Length(max=200)],
                         render_kw={"placeholder": "Enter website URL", "class": "form-control"})
     submit = SubmitField('Add Publisher', render_kw={"class": "btn btn-success"})
+
 
 class CategoryForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired(), Length(max=100)], 
@@ -285,6 +291,11 @@ class LoanForm(FlaskForm):
     due_date = DateField('Due Date', validators=[DataRequired()], format='%Y-%m-%d',
                        render_kw={"class": "form-control", "type": "date"})
     submit = SubmitField('Create Loan', render_kw={"class": "btn btn-success"})
+    
+    def validate_due_date(self, field):
+        if field.data and field.data < date.today():
+            raise ValidationError('Due date cannot be in the past.')
+
 
 # Initialize database
 with app.app_context():
@@ -568,9 +579,87 @@ def books():
     form.publisher_id.choices = [(p.id, p.name) for p in Publisher.query.all()]
     form.category_id.choices = [(c.id, c.name) for c in categories]
     
+    current_year = datetime.now().year  # Add this line
+    
     return render_template('books.html', title='Books', books=books, 
                          categories=categories, authors=authors, form=form,
-                         search_query=search_query, category_filter=category_filter, author_filter=author_filter)
+                         search_query=search_query, category_filter=category_filter, 
+                         author_filter=author_filter, current_year=current_year)  # Add current_year here
+
+@app.route('/edit_book', methods=['POST'])
+@login_required
+def edit_book():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        book_id = request.form.get('book_id')
+        book = Book.query.get(book_id)
+        
+        if not book:
+            return jsonify({'success': False, 'message': 'Book not found'})
+        
+        # Update book details
+        book.isbn = request.form.get('isbn')
+        book.title = request.form.get('title')
+        book.edition = request.form.get('edition')
+        
+        # Handle integer fields
+        publication_year = request.form.get('publication_year')
+        book.publication_year = int(publication_year) if publication_year else None
+        
+        pages = request.form.get('pages')
+        book.pages = int(pages) if pages else None
+        
+        book.author_id = int(request.form.get('author_id'))
+        book.publisher_id = int(request.form.get('publisher_id'))
+        book.category_id = int(request.form.get('category_id'))
+        book.description = request.form.get('description')
+        
+        # Update total copies and adjust available copies if needed
+        new_total_copies = int(request.form.get('total_copies'))
+        if new_total_copies < book.total_copies:
+            # If reducing total copies, make sure we don't go below currently borrowed copies
+            borrowed_copies = book.total_copies - book.available_copies
+            if new_total_copies < borrowed_copies:
+                return jsonify({'success': False, 'message': f'Cannot reduce total copies below {borrowed_copies} (currently borrowed)'})
+        
+        book.total_copies = new_total_copies
+        book.available_copies = book.total_copies - (book.total_copies - book.available_copies)
+        book.location = request.form.get('location')
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Book updated successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error updating book: {str(e)}'})
+
+@app.route('/delete_book', methods=['POST'])
+@login_required
+def delete_book():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        book_id = request.json.get('book_id')
+        book = Book.query.get(book_id)
+        
+        if not book:
+            return jsonify({'success': False, 'message': 'Book not found'})
+        
+        # Check if book has active loans
+        active_loans = Loan.query.filter_by(book_id=book_id, return_date=None).count()
+        if active_loans > 0:
+            return jsonify({'success': False, 'message': f'Cannot delete book with {active_loans} active loan(s)'})
+        
+        db.session.delete(book)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Book deleted successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error deleting book: {str(e)}'})
 
 @app.route('/loans')
 @login_required
@@ -601,8 +690,9 @@ def loans():
         form.book_id.choices = [(b.id, f"{b.id} - {b.title}") for b in available_books]
         form.member_id.choices = [(m.id, f"{m.id} - {m.full_name}") for m in active_members]
         
-        return render_template('loans.html', title='Loan Management', loans=loans, form=form)
-
+        current_date = date.today().isoformat()  # Add this line
+        
+        return render_template('loans.html', title='Loan Management', loans=loans, form=form, current_date=current_date)
 
 @app.route('/fines')
 @login_required
@@ -637,7 +727,9 @@ def authors():
     
     authors = Author.query.all()
     form = AuthorForm()
-    return render_template('authors.html', title='Authors', authors=authors, form=form)
+    current_date = date.today().isoformat()  # Add this line
+    
+    return render_template('authors.html', title='Authors', authors=authors, form=form, current_date=current_date)
 
 @app.route('/publishers')
 @login_required
@@ -866,6 +958,92 @@ def add_member():
     
     return redirect(url_for('members'))
 
+# Add these routes to your app.py
+
+@app.route('/edit_member', methods=['POST'])
+@login_required
+def edit_member():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        member_id = request.form.get('member_id')
+        member = Member.query.get(member_id)
+        
+        if not member:
+            return jsonify({'success': False, 'message': 'Member not found'})
+        
+        # Update member details
+        member.first_name = request.form.get('first_name')
+        member.last_name = request.form.get('last_name')
+        member.email = request.form.get('email')
+        member.phone = request.form.get('phone')
+        member.address = request.form.get('address')
+        member.membership_type = request.form.get('membership_type')
+        member.membership_status = request.form.get('membership_status')
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Member updated successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error updating member: {str(e)}'})
+
+@app.route('/edit_publisher', methods=['POST'])
+@login_required
+def edit_publisher():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        publisher_id = request.form.get('publisher_id')
+        publisher = Publisher.query.get(publisher_id)
+        
+        if not publisher:
+            return jsonify({'success': False, 'message': 'Publisher not found'})
+        
+        # Update publisher details
+        publisher.name = request.form.get('name')
+        publisher.email = request.form.get('email')
+        publisher.phone = request.form.get('phone')
+        publisher.address = request.form.get('address')
+        publisher.website = request.form.get('website')
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Publisher updated successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error updating publisher: {str(e)}'})
+
+@app.route('/edit_category', methods=['POST'])
+@login_required
+def edit_category():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        category_id = request.form.get('category_id')
+        category = Category.query.get(category_id)
+        
+        if not category:
+            return jsonify({'success': False, 'message': 'Category not found'})
+        
+        # Update category details
+        category.name = request.form.get('name')
+        category.description = request.form.get('description')
+        
+        # Handle parent_id
+        parent_id = request.form.get('parent_id')
+        category.parent_id = int(parent_id) if parent_id else None
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Category updated successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error updating category: {str(e)}'})
+
 @app.route('/add_book', methods=['POST'])
 @login_required
 def add_book():
@@ -884,6 +1062,22 @@ def add_book():
     
     if form.validate_on_submit():
         try:
+            # Check if ISBN already exists
+            existing_book = Book.query.filter_by(isbn=form.isbn.data).first()
+            if existing_book:
+                flash(f'A book with ISBN "{form.isbn.data}" already exists. Please use a different ISBN.', 'error')
+                # Re-render the template with form data preserved
+                return render_template('books.html', 
+                                    title='Books', 
+                                    books=Book.query.options(joinedload(Book.author), joinedload(Book.publisher), joinedload(Book.category)).all(),
+                                    categories=categories, 
+                                    authors=authors, 
+                                    form=form,
+                                    search_query='', 
+                                    category_filter='', 
+                                    author_filter='', 
+                                    current_year=datetime.now().year)
+            
             # Generate book ID
             book_count = Book.query.count()
             new_id = f'B{book_count + 1:06d}'
@@ -895,7 +1089,7 @@ def add_book():
                 edition=form.edition.data,
                 publication_year=form.publication_year.data,
                 pages=form.pages.data,
-                language=form.language.data,
+                language=form.language.data or 'English',
                 description=form.description.data,
                 total_copies=form.total_copies.data,
                 available_copies=form.total_copies.data,  # Initially all copies are available
@@ -908,15 +1102,45 @@ def add_book():
             db.session.commit()
             
             flash('Book added successfully', 'success')
+            return redirect(url_for('books'))
+            
         except Exception as e:
             db.session.rollback()
-            flash(f'Error adding book: {str(e)}', 'error')
+            # Check if it's a unique constraint violation for ISBN
+            if 'UNIQUE constraint failed: book.isbn' in str(e):
+                flash(f'A book with ISBN "{form.isbn.data}" already exists. Please use a different ISBN.', 'error')
+            else:
+                flash(f'Error adding book: {str(e)}', 'error')
+            
+            # Re-render the template with form data preserved
+            return render_template('books.html', 
+                                title='Books', 
+                                books=Book.query.options(joinedload(Book.author), joinedload(Book.publisher), joinedload(Book.category)).all(),
+                                categories=categories, 
+                                authors=authors, 
+                                form=form,
+                                search_query='', 
+                                category_filter='', 
+                                author_filter='', 
+                                current_year=datetime.now().year)
     else:
         for field, errors in form.errors.items():
             for error in errors:
                 flash(f'{getattr(form, field).label.text}: {error}', 'error')
     
-    return redirect(url_for('books'))
+    # If form validation fails, redirect back to books page but we need to preserve form data
+    # This is handled by the form object itself which retains the submitted data
+    books_list = Book.query.options(joinedload(Book.author), joinedload(Book.publisher), joinedload(Book.category)).all()
+    return render_template('books.html', 
+                         title='Books', 
+                         books=books_list,
+                         categories=categories, 
+                         authors=authors, 
+                         form=form,
+                         search_query='', 
+                         category_filter='', 
+                         author_filter='', 
+                         current_year=datetime.now().year)
 
 @app.route('/add_author', methods=['POST'])
 @login_required
@@ -1014,6 +1238,43 @@ def add_category():
                 flash(f'{getattr(form, field).label.text}: {error}', 'error')
     
     return redirect(url_for('categories'))
+
+@app.route('/edit_author', methods=['POST'])
+@login_required
+def edit_author():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        author_id = request.form.get('author_id')
+        author = Author.query.get(author_id)
+        
+        if not author:
+            return jsonify({'success': False, 'message': 'Author not found'})
+        
+        # Update author details
+        author.name = request.form.get('name')
+        author.nationality = request.form.get('nationality')
+        author.biography = request.form.get('biography')
+        
+        # Handle birth date
+        birth_date_str = request.form.get('birth_date')
+        if birth_date_str:
+            author.birth_date = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
+            # Validate birth date is not in future
+            if author.birth_date > date.today():
+                return jsonify({'success': False, 'message': 'Birth date cannot be in the future'})
+        else:
+            author.birth_date = None
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Author updated successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error updating author: {str(e)}'})
+
+
 
 @app.route('/create_loan', methods=['POST'])
 @login_required

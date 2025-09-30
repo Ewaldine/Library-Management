@@ -70,11 +70,31 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-info" title="View Details">
+                                <button class="btn btn-sm btn-outline-info view-member-btn" 
+                                        data-member-id="{{ member.id }}"
+                                        data-member-name="{{ member.full_name }}"
+                                        data-member-email="{{ member.email }}"
+                                        data-member-phone="{{ member.phone }}"
+                                        data-member-address="{{ member.address }}"
+                                        data-member-type="{{ member.membership_type }}"
+                                        data-member-status="{{ member.membership_status }}"
+                                        data-member-loans="{{ member.current_loans_count }}/{{ member.max_books }}"
+                                        data-member-fines="${{ '%.2f'|format(member.total_fines_due) }}"
+                                        data-member-joined="{{ member.created_at.strftime('%Y-%m-%d') }}"
+                                        title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 {% if current_user.role in ['admin', 'librarian'] %}
-                                <button class="btn btn-sm btn-outline-warning" title="Edit Member">
+                                <button class="btn btn-sm btn-outline-warning edit-member-btn" 
+                                        data-member-id="{{ member.id }}"
+                                        data-member-first-name="{{ member.first_name }}"
+                                        data-member-last-name="{{ member.last_name }}"
+                                        data-member-email="{{ member.email }}"
+                                        data-member-phone="{{ member.phone }}"
+                                        data-member-address="{{ member.address }}"
+                                        data-member-type="{{ member.membership_type }}"
+                                        data-member-status="{{ member.membership_status }}"
+                                        title="Edit Member">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 {% endif %}
@@ -238,5 +258,269 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Member Modal -->
+<div class="modal fade" id="editMemberModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Member</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_member') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="member_id" id="editMemberId">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editFirstName" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="editFirstName" name="first_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editLastName" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="editLastName" name="last_name" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="editEmail" name="email" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editPhone" class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="editPhone" name="phone" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editAddress" class="form-label">Address</label>
+                        <textarea class="form-control" id="editAddress" name="address" rows="3" required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editMembershipType" class="form-label">Membership Type</label>
+                                <select class="form-control" id="editMembershipType" name="membership_type" required>
+                                    <option value="standard">Standard</option>
+                                    <option value="premium">Premium</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editMembershipStatus" class="form-label">Membership Status</label>
+                                <select class="form-control" id="editMembershipStatus" name="membership_status" required>
+                                    <option value="active">Active</option>
+                                    <option value="suspended">Suspended</option>
+                                    <option value="expired">Expired</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Update Member</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endif %}
+
+<!-- View Member Modal -->
+<div class="modal fade" id="viewMemberModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-eye me-2"></i>Member Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Member ID</label>
+                            <p id="viewMemberId" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Full Name</label>
+                            <p id="viewMemberName" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Email</label>
+                            <p id="viewMemberEmail" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Phone</label>
+                            <p id="viewMemberPhone" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Address</label>
+                    <div id="viewMemberAddress" class="border rounded p-3 bg-light"></div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Membership Type</label>
+                            <p id="viewMemberType" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Membership Status</label>
+                            <p id="viewMemberStatus" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Date Joined</label>
+                            <p id="viewMemberJoined" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Current Loans</label>
+                            <p id="viewMemberLoans" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Pending Fines</label>
+                            <p id="viewMemberFines" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // View member functionality
+    const viewButtons = document.querySelectorAll('.view-member-btn');
+    const viewModal = new bootstrap.Modal(document.getElementById('viewMemberModal'));
+    
+    viewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Populate the view modal with member data
+            document.getElementById('viewMemberId').textContent = this.getAttribute('data-member-id');
+            document.getElementById('viewMemberName').textContent = this.getAttribute('data-member-name');
+            document.getElementById('viewMemberEmail').textContent = this.getAttribute('data-member-email');
+            document.getElementById('viewMemberPhone').textContent = this.getAttribute('data-member-phone');
+            document.getElementById('viewMemberAddress').textContent = this.getAttribute('data-member-address');
+            document.getElementById('viewMemberType').textContent = this.getAttribute('data-member-type');
+            document.getElementById('viewMemberStatus').textContent = this.getAttribute('data-member-status');
+            document.getElementById('viewMemberLoans').textContent = this.getAttribute('data-member-loans');
+            document.getElementById('viewMemberFines').textContent = this.getAttribute('data-member-fines');
+            document.getElementById('viewMemberJoined').textContent = this.getAttribute('data-member-joined');
+            
+            // Show the view modal
+            viewModal.show();
+        });
+    });
+
+    {% if current_user.role in ['admin', 'librarian'] %}
+    // Edit member functionality
+    const editButtons = document.querySelectorAll('.edit-member-btn');
+    const editModal = new bootstrap.Modal(document.getElementById('editMemberModal'));
+    
+    editButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Populate the edit form with member data
+            document.getElementById('editMemberId').value = this.getAttribute('data-member-id');
+            document.getElementById('editFirstName').value = this.getAttribute('data-member-first-name');
+            document.getElementById('editLastName').value = this.getAttribute('data-member-last-name');
+            document.getElementById('editEmail').value = this.getAttribute('data-member-email');
+            document.getElementById('editPhone').value = this.getAttribute('data-member-phone');
+            document.getElementById('editAddress').value = this.getAttribute('data-member-address');
+            document.getElementById('editMembershipType').value = this.getAttribute('data-member-type');
+            document.getElementById('editMembershipStatus').value = this.getAttribute('data-member-status');
+            
+            // Show the edit modal
+            editModal.show();
+        });
+    });
+    
+    // Handle edit form submission
+    const editForm = document.querySelector('#editMemberModal form');
+    editForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitButton = this.querySelector('button[type="submit"]');
+        
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating...';
+        submitButton.disabled = true;
+        
+        fetch('{{ url_for("edit_member") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                editModal.hide();
+                // Reload the page to show updated data
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showAlert('error', data.message);
+                submitButton.innerHTML = 'Update Member';
+                submitButton.disabled = false;
+            }
+        })
+        .catch(error => {
+            showAlert('error', 'Network error. Please try again.');
+            submitButton.innerHTML = 'Update Member';
+            submitButton.disabled = false;
+        });
+    });
+    {% endif %}
+
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
 {% endblock %}

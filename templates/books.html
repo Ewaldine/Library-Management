@@ -97,6 +97,10 @@
                         <span>Year</span>
                         <span>{{ book.publication_year or 'N/A' }}</span>
                     </div>
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Edition</span>
+                        <span>{{ book.edition or '1st Edition' }}</span>
+                    </div>
                     <div class="d-flex justify-content-between small text-muted mb-3">
                         <span>Available</span>
                         <span>{{ book.available_copies }}/{{ book.total_copies }}</span>
@@ -113,7 +117,6 @@
             <div class="card-footer bg-transparent">
                 <div class="d-flex justify-content-between align-items-center">
                     <small class="text-muted">
-                        {{ book.edition or '1st Edition' }}
                     </small>
                     <div class="btn-group">
                         {% if current_user.role == 'member' and book.is_available %}
@@ -122,8 +125,25 @@
                         </button>
                         {% endif %}
                         {% if current_user.role in ['admin', 'librarian'] %}
-                        <button class="btn btn-sm btn-outline-secondary">
+                        <button class="btn btn-sm btn-outline-warning edit-book-btn" 
+                                data-book-id="{{ book.id }}"
+                                data-book-isbn="{{ book.isbn }}"
+                                data-book-title="{{ book.title }}"
+                                data-book-edition="{{ book.edition or '' }}"
+                                data-book-publication-year="{{ book.publication_year or '' }}"
+                                data-book-pages="{{ book.pages or '' }}"
+                                data-book-author-id="{{ book.author_id }}"
+                                data-book-publisher-id="{{ book.publisher_id }}"
+                                data-book-category-id="{{ book.category_id }}"
+                                data-book-description="{{ book.description or '' }}"
+                                data-book-total-copies="{{ book.total_copies }}"
+                                data-book-location="{{ book.location or '' }}">
                             <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger delete-book-btn" 
+                                data-book-id="{{ book.id }}"
+                                data-book-title="{{ book.title }}">
+                            <i class="fas fa-trash"></i>
                         </button>
                         {% endif %}
                     </div>
@@ -155,12 +175,12 @@
 
 <!-- Add Book Modal -->
 {% if current_user.role in ['admin', 'librarian'] %}
-<div class="modal fade" id="addBookModal" tabindex="-1">
+<div class="modal fade {% if form.errors %}show{% endif %}" id="addBookModal" tabindex="-1" {% if form.errors %}style="display: block; background: rgba(0,0,0,0.5);"{% endif %}>
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Add New Book</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="closeModal()"></button>
             </div>
             <form method="POST" action="{{ url_for('add_book') }}">
                 <div class="modal-body">
@@ -321,8 +341,118 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="closeModal()">Cancel</button>
                     {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Book Modal -->
+<div class="modal fade" id="editBookModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Book</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_book') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="book_id" id="editBookId">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editIsbn" class="form-label">ISBN</label>
+                                <input type="text" class="form-control" id="editIsbn" name="isbn" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editTitle" class="form-label">Title</label>
+                                <input type="text" class="form-control" id="editTitle" name="title" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="editEdition" class="form-label">Edition</label>
+                                <input type="text" class="form-control" id="editEdition" name="edition">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="editPublicationYear" class="form-label">Publication Year</label>
+                                <input type="number" class="form-control" id="editPublicationYear" name="publication_year">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="editPages" class="form-label">Pages</label>
+                                <input type="number" class="form-control" id="editPages" name="pages">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="editAuthorId" class="form-label">Author</label>
+                                <select class="form-control" id="editAuthorId" name="author_id" required>
+                                    {% for author in authors %}
+                                    <option value="{{ author.id }}">{{ author.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="editPublisherId" class="form-label">Publisher</label>
+                                <select class="form-control" id="editPublisherId" name="publisher_id" required>
+                                    {% for publisher in publishers %}
+                                    <option value="{{ publisher.id }}">{{ publisher.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="editCategoryId" class="form-label">Category</label>
+                                <select class="form-control" id="editCategoryId" name="category_id" required>
+                                    {% for category in categories %}
+                                    <option value="{{ category.id }}">{{ category.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editDescription" name="description" rows="4"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editTotalCopies" class="form-label">Total Copies</label>
+                                <input type="number" class="form-control" id="editTotalCopies" name="total_copies" required min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editLocation" class="form-label">Location</label>
+                                <input type="text" class="form-control" id="editLocation" name="location">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Update Book</button>
                 </div>
             </form>
         </div>
@@ -332,9 +462,32 @@
 {% endblock %}
 
 {% block scripts %}
-{% if current_user.role == 'member' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Auto-show modal if there are form errors
+    {% if form.errors %}
+    const modal = new bootstrap.Modal(document.getElementById('addBookModal'));
+    modal.show();
+    {% endif %}
+
+    // Function to close modal properly
+    window.closeModal = function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addBookModal'));
+        if (modal) {
+            modal.hide();
+        }
+        // Remove the backdrop
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    };
+
+    {% if current_user.role == 'member' %}
+    // Borrow book functionality
     const borrowButtons = document.querySelectorAll('.borrow-btn');
     borrowButtons.forEach(button => {
         button.addEventListener('click', function() {
@@ -376,7 +529,114 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+    {% endif %}
+
+    {% if current_user.role in ['admin', 'librarian'] %}
+    // Edit book functionality
+    const editButtons = document.querySelectorAll('.edit-book-btn');
+    const editModal = new bootstrap.Modal(document.getElementById('editBookModal'));
     
+    editButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Populate the edit form with book data
+            document.getElementById('editBookId').value = this.getAttribute('data-book-id');
+            document.getElementById('editIsbn').value = this.getAttribute('data-book-isbn');
+            document.getElementById('editTitle').value = this.getAttribute('data-book-title');
+            document.getElementById('editEdition').value = this.getAttribute('data-book-edition');
+            document.getElementById('editPublicationYear').value = this.getAttribute('data-book-publication-year');
+            document.getElementById('editPages').value = this.getAttribute('data-book-pages');
+            document.getElementById('editAuthorId').value = this.getAttribute('data-book-author-id');
+            document.getElementById('editPublisherId').value = this.getAttribute('data-book-publisher-id');
+            document.getElementById('editCategoryId').value = this.getAttribute('data-book-category-id');
+            document.getElementById('editDescription').value = this.getAttribute('data-book-description');
+            document.getElementById('editTotalCopies').value = this.getAttribute('data-book-total-copies');
+            document.getElementById('editLocation').value = this.getAttribute('data-book-location');
+            
+            // Show the edit modal
+            editModal.show();
+        });
+    });
+    
+    // Handle edit form submission
+    const editForm = document.querySelector('#editBookModal form');
+    editForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitButton = this.querySelector('button[type="submit"]');
+        
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating...';
+        submitButton.disabled = true;
+        
+        fetch('{{ url_for("edit_book") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                editModal.hide();
+                // Reload the page to show updated data
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showAlert('error', data.message);
+                submitButton.innerHTML = 'Update Book';
+                submitButton.disabled = false;
+            }
+        })
+        .catch(error => {
+            showAlert('error', 'Network error. Please try again.');
+            submitButton.innerHTML = 'Update Book';
+            submitButton.disabled = false;
+        });
+    });
+
+    // Delete book functionality
+    const deleteButtons = document.querySelectorAll('.delete-book-btn');
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const bookId = this.getAttribute('data-book-id');
+            const bookTitle = this.getAttribute('data-book-title');
+            
+            if (confirm(`Are you sure you want to delete "${bookTitle}"? This action cannot be undone.`)) {
+                const button = this;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                button.disabled = true;
+                
+                fetch('{{ url_for("delete_book") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        book_id: bookId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert('success', data.message);
+                        // Remove the book card from the page
+                        button.closest('.col-md-6').remove();
+                    } else {
+                        showAlert('error', data.message);
+                        button.innerHTML = '<i class="fas fa-trash"></i>';
+                        button.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    showAlert('error', 'Network error. Please try again.');
+                    button.innerHTML = '<i class="fas fa-trash"></i>';
+                    button.disabled = false;
+                });
+            }
+        });
+    });
+    {% endif %}
+
     function showAlert(type, message) {
         const alertDiv = document.createElement('div');
         alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
@@ -392,6 +652,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     }
 });
+
+// Publication year validation
+function validatePublicationYear(input) {
+    const currentYear = new Date().getFullYear();
+    const year = parseInt(input.value);
+    
+    if (year > currentYear) {
+        input.setCustomValidity(`Publication year cannot be greater than ${currentYear}`);
+    } else {
+        input.setCustomValidity('');
+    }
+}
+
+// Add event listeners for publication year validation
+document.addEventListener('DOMContentLoaded', function() {
+    const publicationYearInputs = document.querySelectorAll('input[name="publication_year"]');
+    publicationYearInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            validatePublicationYear(this);
+        });
+        
+        // Validate on page load if there's already a value
+        if (input.value) {
+            validatePublicationYear(input);
+        }
+    });
+});
 </script>
-{% endif %}
 {% endblock %}
