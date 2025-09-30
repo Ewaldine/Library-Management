@@ -572,6 +572,81 @@ def books():
                          categories=categories, authors=authors, form=form,
                          search_query=search_query, category_filter=category_filter, author_filter=author_filter)
 
+@app.route('/edit_book', methods=['POST'])
+@login_required
+def edit_book():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        book_id = request.form.get('book_id')
+        book = Book.query.get(book_id)
+        
+        if not book:
+            return jsonify({'success': False, 'message': 'Book not found'})
+        
+        # Update book details
+        book.isbn = request.form.get('isbn')
+        book.title = request.form.get('title')
+        book.edition = request.form.get('edition')
+        
+        # Handle integer fields
+        publication_year = request.form.get('publication_year')
+        book.publication_year = int(publication_year) if publication_year else None
+        
+        pages = request.form.get('pages')
+        book.pages = int(pages) if pages else None
+        
+        book.author_id = int(request.form.get('author_id'))
+        book.publisher_id = int(request.form.get('publisher_id'))
+        book.category_id = int(request.form.get('category_id'))
+        book.description = request.form.get('description')
+        
+        # Update total copies and adjust available copies if needed
+        new_total_copies = int(request.form.get('total_copies'))
+        if new_total_copies < book.total_copies:
+            # If reducing total copies, make sure we don't go below currently borrowed copies
+            borrowed_copies = book.total_copies - book.available_copies
+            if new_total_copies < borrowed_copies:
+                return jsonify({'success': False, 'message': f'Cannot reduce total copies below {borrowed_copies} (currently borrowed)'})
+        
+        book.total_copies = new_total_copies
+        book.available_copies = book.total_copies - (book.total_copies - book.available_copies)
+        book.location = request.form.get('location')
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Book updated successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error updating book: {str(e)}'})
+
+@app.route('/delete_book', methods=['POST'])
+@login_required
+def delete_book():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        book_id = request.json.get('book_id')
+        book = Book.query.get(book_id)
+        
+        if not book:
+            return jsonify({'success': False, 'message': 'Book not found'})
+        
+        # Check if book has active loans
+        active_loans = Loan.query.filter_by(book_id=book_id, return_date=None).count()
+        if active_loans > 0:
+            return jsonify({'success': False, 'message': f'Cannot delete book with {active_loans} active loan(s)'})
+        
+        db.session.delete(book)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Book deleted successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error deleting book: {str(e)}'})
+
 @app.route('/loans')
 @login_required
 def loans():
