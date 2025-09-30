@@ -273,7 +273,7 @@ class CategoryForm(FlaskForm):
                       render_kw={"placeholder": "Enter category name", "class": "form-control"})
     description = TextAreaField('Description',
                               render_kw={"placeholder": "Enter category description", "class": "form-control", "rows": 3})
-    parent_id = SelectField('Parent Category', coerce=int, 
+    parent_id = SelectField('Parent Category', 
                           render_kw={"class": "form-control"})
     submit = SubmitField('Add Category', render_kw={"class": "btn btn-success"})
 
@@ -988,11 +988,13 @@ def add_category():
     
     form = CategoryForm()
     categories = Category.query.all()
-    form.parent_id.choices = [('', 'No Parent')] + [(c.id, c.name) for c in categories]
+    form.parent_id.choices = [('', 'No Parent')] + [(str(c.id), c.name) for c in categories]
     
     if form.validate_on_submit():
         try:
-            parent_id = form.parent_id.data if form.parent_id.data else None
+            parent_id = form.parent_id.data
+            # Convert to int if not empty, otherwise set to None
+            parent_id = int(parent_id) if parent_id else None
             
             new_category = Category(
                 name=form.name.data,

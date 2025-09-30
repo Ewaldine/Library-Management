@@ -118,7 +118,7 @@
 </div>
 
 <!-- Add Category Modal -->
-{% if current_user.role in ['admin', 'librarian'] %}
+{% if current_user.role in ['admin', 'librarian'] and form %}
 <div class="modal fade" id="addCategoryModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -144,7 +144,7 @@
                     
                     <div class="mb-3">
                         {{ form.description.label(class="form-label") }}
-                        {{ form.description(class="form-control") }}
+                        {{ form.description(class="form-control", rows=3) }}
                         {% if form.description.errors %}
                             <div class="text-danger small mt-1">
                                 {% for error in form.description.errors %}
@@ -156,7 +156,7 @@
                     
                     <div class="mb-3">
                         {{ form.parent_id.label(class="form-label") }}
-                        {{ form.parent_id(class="form-control") }}
+                        {{ form.parent_id(class="form-select") }}
                         {% if form.parent_id.errors %}
                             <div class="text-danger small mt-1">
                                 {% for error in form.parent_id.errors %}
