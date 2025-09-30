@@ -97,6 +97,10 @@
                         <span>Year</span>
                         <span>{{ book.publication_year or 'N/A' }}</span>
                     </div>
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Edition</span>
+                        <span>{{ book.edition or '1st Edition' }}nd</span>
+                    </div>
                     <div class="d-flex justify-content-between small text-muted mb-3">
                         <span>Available</span>
                         <span>{{ book.available_copies }}/{{ book.total_copies }}</span>
@@ -113,7 +117,6 @@
             <div class="card-footer bg-transparent">
                 <div class="d-flex justify-content-between align-items-center">
                     <small class="text-muted">
-                        {{ book.edition or '1st Edition' }}
                     </small>
                     <div class="btn-group">
                         {% if current_user.role == 'member' and book.is_available %}
