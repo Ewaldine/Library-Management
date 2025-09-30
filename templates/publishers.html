@@ -60,11 +60,26 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-info" title="View Details">
+                                <button class="btn btn-sm btn-outline-info view-publisher-btn" 
+                                        data-publisher-id="{{ publisher.id }}"
+                                        data-publisher-name="{{ publisher.name }}"
+                                        data-publisher-email="{{ publisher.email or 'N/A' }}"
+                                        data-publisher-phone="{{ publisher.phone or 'N/A' }}"
+                                        data-publisher-address="{{ publisher.address or 'No address' }}"
+                                        data-publisher-website="{{ publisher.website or 'N/A' }}"
+                                        data-publisher-books-count="{{ publisher.books|length }}"
+                                        title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 {% if current_user.role in ['admin', 'librarian'] %}
-                                <button class="btn btn-sm btn-outline-warning" title="Edit Publisher">
+                                <button class="btn btn-sm btn-outline-warning edit-publisher-btn" 
+                                        data-publisher-id="{{ publisher.id }}"
+                                        data-publisher-name="{{ publisher.name }}"
+                                        data-publisher-email="{{ publisher.email or '' }}"
+                                        data-publisher-phone="{{ publisher.phone or '' }}"
+                                        data-publisher-address="{{ publisher.address or '' }}"
+                                        data-publisher-website="{{ publisher.website or '' }}"
+                                        title="Edit Publisher">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 {% endif %}
@@ -175,5 +190,210 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Publisher Modal -->
+<div class="modal fade" id="editPublisherModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Publisher</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_publisher') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="publisher_id" id="editPublisherId">
+                    
+                    <div class="mb-3">
+                        <label for="editPublisherName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="editPublisherName" name="name" required>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editPublisherEmail" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="editPublisherEmail" name="email">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editPublisherPhone" class="form-label">Phone</label>
+                                <input type="text" class="form-control" id="editPublisherPhone" name="phone">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editPublisherAddress" class="form-label">Address</label>
+                        <textarea class="form-control" id="editPublisherAddress" name="address" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editPublisherWebsite" class="form-label">Website</label>
+                        <input type="url" class="form-control" id="editPublisherWebsite" name="website">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Update Publisher</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endif %}
+
+<!-- View Publisher Modal -->
+<div class="modal fade" id="viewPublisherModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-eye me-2"></i>Publisher Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Name</label>
+                            <p id="viewPublisherName" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Books Published</label>
+                            <p id="viewPublisherBooksCount" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Email</label>
+                            <p id="viewPublisherEmail" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Phone</label>
+                            <p id="viewPublisherPhone" class="form-control-plaintext"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Address</label>
+                    <div id="viewPublisherAddress" class="border rounded p-3 bg-light"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Website</label>
+                    <p id="viewPublisherWebsite" class="form-control-plaintext"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // View publisher functionality
+    const viewButtons = document.querySelectorAll('.view-publisher-btn');
+    const viewModal = new bootstrap.Modal(document.getElementById('viewPublisherModal'));
+    
+    viewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Populate the view modal with publisher data
+            document.getElementById('viewPublisherName').textContent = this.getAttribute('data-publisher-name');
+            document.getElementById('viewPublisherEmail').textContent = this.getAttribute('data-publisher-email');
+            document.getElementById('viewPublisherPhone').textContent = this.getAttribute('data-publisher-phone');
+            document.getElementById('viewPublisherAddress').textContent = this.getAttribute('data-publisher-address');
+            document.getElementById('viewPublisherWebsite').textContent = this.getAttribute('data-publisher-website');
+            document.getElementById('viewPublisherBooksCount').textContent = this.getAttribute('data-publisher-books-count');
+            
+            // Show the view modal
+            viewModal.show();
+        });
+    });
+
+    {% if current_user.role in ['admin', 'librarian'] %}
+    // Edit publisher functionality
+    const editButtons = document.querySelectorAll('.edit-publisher-btn');
+    const editModal = new bootstrap.Modal(document.getElementById('editPublisherModal'));
+    
+    editButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Populate the edit form with publisher data
+            document.getElementById('editPublisherId').value = this.getAttribute('data-publisher-id');
+            document.getElementById('editPublisherName').value = this.getAttribute('data-publisher-name');
+            document.getElementById('editPublisherEmail').value = this.getAttribute('data-publisher-email');
+            document.getElementById('editPublisherPhone').value = this.getAttribute('data-publisher-phone');
+            document.getElementById('editPublisherAddress').value = this.getAttribute('data-publisher-address');
+            document.getElementById('editPublisherWebsite').value = this.getAttribute('data-publisher-website');
+            
+            // Show the edit modal
+            editModal.show();
+        });
+    });
+    
+    // Handle edit form submission
+    const editForm = document.querySelector('#editPublisherModal form');
+    editForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitButton = this.querySelector('button[type="submit"]');
+        
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating...';
+        submitButton.disabled = true;
+        
+        fetch('{{ url_for("edit_publisher") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                editModal.hide();
+                // Reload the page to show updated data
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showAlert('error', data.message);
+                submitButton.innerHTML = 'Update Publisher';
+                submitButton.disabled = false;
+            }
+        })
+        .catch(error => {
+            showAlert('error', 'Network error. Please try again.');
+            submitButton.innerHTML = 'Update Publisher';
+            submitButton.disabled = false;
+        });
+    });
+    {% endif %}
+
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
 {% endblock %}
