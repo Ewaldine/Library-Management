@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="loan-details">
+    <h6>Detailed Loan Information for: <strong>{{ book.title }}</strong></h6>
+    <p class="text-muted">by {{ book.author.name }}</p>
+    
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        You have <strong>{{ loans|length }} copy/copies</strong> of this book.
+        {% if active_loans_count == 1 %}
+        <br><small>You can renew your loan since you have only one copy.</small>
+        {% elif active_loans_count > 1 %}
+        <br><small class="text-warning">Renewal is not available when you have multiple copies.</small>
+        {% endif %}
+    </div>
+    
+    <div class="table-responsive mt-3">
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Copy #</th>
+                    <th>Loan Date</th>
+                    <th>Due Date</th>
+                    <th>Return Date</th>
+                    <th>Status</th>
+                    <th>Renewals</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loan in loans %}
+                <tr>
+                    <td>#{{ loop.index }}</td>
+                    <td>{{ loan.loan_date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ loan.due_date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ loan.return_date.strftime('%Y-%m-%d') if loan.return_date else 'Not returned' }}</td>
+                    <td>
+                        <span class="badge bg-{{ 'success' if loan.status == 'active' else 'secondary' }}">
+                            {{ 'Active' if loan.status == 'active' else 'Returned' }}
+                        </span>
+                    </td>
+                    <td>{{ loan.renewed_count }}/{{ loan.max_renewals }}</td>
+                    <td>
+                        {% if loan.return_date is none and active_loans_count == 1 and loan.renewed_count < loan.max_renewals and not loan.is_overdue %}
+                        <button class="btn btn-sm btn-outline-primary renew-specific-btn" 
+                                data-loan-id="{{ loan.id }}">
+                            <i class="fas fa-redo me-1"></i>Renew
+                        </button>
+                        {% elif loan.return_date is none and active_loans_count > 1 %}
+                        <small class="text-muted">Multiple copies</small>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

@@ -5,7 +5,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, SelectField, IntegerField, TextAreaField, EmailField, DateField
 from wtforms.validators import DataRequired, Length, NumberRange, Email, ValidationError
 from datetime import datetime, timedelta
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, case, or_, func
 from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash, check_password_hash
 from reportlab.lib.pagesizes import letter
@@ -22,6 +22,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'library_secret_key_2025'
 db = SQLAlchemy(app)
+
+@app.context_processor
+def inject_now():
+    return {'now': datetime.utcnow()}
 
 # Login Manager
 login_manager = LoginManager(app)
@@ -47,7 +51,7 @@ class Member(db.Model):
     address = db.Column(db.Text, nullable=False)
     membership_type = db.Column(db.String(20), nullable=False, default='standard')  # standard, premium
     membership_status = db.Column(db.String(20), nullable=False, default='active')  # active, suspended, expired
-    max_books = db.Column(db.Integer, nullable=False, default=5)
+    max_books = db.Column(db.Integer, nullable=False, default=3)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -370,36 +374,54 @@ def get_loan_period(member):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    update_overdue_loans()  # Update overdue status
+    update_overdue_loans()
+    
+    # Add this line to get current datetime
+    current_time = datetime.utcnow()
     
     if current_user.role == 'member':
-        member = Member.query.filter_by(user_id=current_user.id).first()
+        # Single query with eager loading
+        member = Member.query.options(
+            joinedload(Member.loans).joinedload(Loan.book),
+            joinedload(Member.fines)
+        ).filter_by(user_id=current_user.id).first()
+        
         if member:
-            active_loans = Loan.query.filter_by(member_id=member.id, return_date=None).all()
-            recent_loans = Loan.query.filter_by(member_id=member.id).order_by(Loan.loan_date.desc()).limit(5).all()
-            pending_fines = Fine.query.filter_by(member_id=member.id, status='pending').all()
+            # Use pre-calculated fields instead of properties
+            active_loans = [loan for loan in member.loans if loan.return_date is None]
+            recent_loans = sorted(member.loans, key=lambda x: x.loan_date, reverse=True)[:5]
+            pending_fines = [fine for fine in member.fines if fine.status == 'pending']
             
             return render_template('dashboard.html', 
                                  title='Member Dashboard',
                                  member=member,
                                  active_loans=active_loans,
                                  recent_loans=recent_loans,
-                                 pending_fines=pending_fines)
+                                 pending_fines=pending_fines,
+                                 now=current_time)  # Add this line
         else:
             flash('Please complete your member profile.', 'warning')
             return redirect(url_for('profile'))
     
     elif current_user.role == 'librarian':
-        # Librarian dashboard
-        total_books = Book.query.count()
-        total_members = Member.query.count()
-        active_loans = Loan.query.filter_by(return_date=None).count()
-        overdue_loans = Loan.query.filter_by(status='overdue').count()
-        pending_fines = Fine.query.filter_by(status='pending').count()
+        # Optimized queries with single aggregate calls
+        total_books = db.session.query(func.count(Book.id)).scalar()
+        total_members = db.session.query(func.count(Member.id)).scalar()
+        active_loans = db.session.query(func.count(Loan.id)).filter(
+            Loan.return_date == None
+        ).scalar()
+        overdue_loans = db.session.query(func.count(Loan.id)).filter(
+            Loan.status == 'overdue'
+        ).scalar()
+        pending_fines = db.session.query(func.count(Fine.id)).filter(
+            Fine.status == 'pending'
+        ).scalar()
         
+        # Limited recent loans with eager loading
         recent_loans = Loan.query.options(
-            joinedload(Loan.book), joinedload(Loan.member)
-        ).order_by(Loan.loan_date.desc()).limit(10).all()
+            joinedload(Loan.book),
+            joinedload(Loan.member)
+        ).order_by(Loan.loan_date.desc()).limit(5).all()
         
         return render_template('dashboard.html',
                              title='Librarian Dashboard',
@@ -408,17 +430,19 @@ def dashboard():
                              active_loans=active_loans,
                              overdue_loans=overdue_loans,
                              pending_fines=pending_fines,
-                             recent_loans=recent_loans)
+                             recent_loans=recent_loans,
+                             now=current_time)  # Add this line
     
-    # Admin dashboard
-    total_books = Book.query.count()
-    total_members = Member.query.count()
-    total_authors = Author.query.count()
-    total_publishers = Publisher.query.count()
+    # Admin dashboard - optimized queries
+    total_books = db.session.query(func.count(Book.id)).scalar()
+    total_members = db.session.query(func.count(Member.id)).scalar()
+    total_authors = db.session.query(func.count(Author.id)).scalar()
+    total_publishers = db.session.query(func.count(Publisher.id)).scalar()
     
     recent_activities = Loan.query.options(
-        joinedload(Loan.book), joinedload(Loan.member)
-    ).order_by(Loan.loan_date.desc()).limit(10).all()
+        joinedload(Loan.book),
+        joinedload(Loan.member)
+    ).order_by(Loan.loan_date.desc()).limit(5).all()
     
     return render_template('dashboard.html',
                          title='Admin Dashboard',
@@ -426,7 +450,8 @@ def dashboard():
                          total_members=total_members,
                          total_authors=total_authors,
                          total_publishers=total_publishers,
-                         recent_activities=recent_activities)
+                         recent_activities=recent_activities,
+                         now=current_time)  # Add this line
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -664,23 +689,33 @@ def delete_book():
 @app.route('/loans')
 @login_required
 def loans():
+    page = request.args.get('page', 1, type=int)
+    per_page = 15
+    
     if current_user.role == 'member':
         member = Member.query.filter_by(user_id=current_user.id).first()
         if member:
-            loans = Loan.query.filter_by(member_id=member.id).options(
-                joinedload(Loan.book), joinedload(Loan.member)
-            ).order_by(Loan.loan_date.desc()).all()
+            query = Loan.query.filter_by(member_id=member.id).options(
+                joinedload(Loan.book),
+                joinedload(Loan.member)
+            ).order_by(Loan.loan_date.desc())
+            
+            loans = query.paginate(page=page, per_page=per_page, error_out=False)
             return render_template('loans.html', title='My Loans', loans=loans, member=member)
     
     else:
-        # Admin and librarian view all loans
         status_filter = request.args.get('status', '')
-        query = Loan.query.options(joinedload(Loan.book), joinedload(Loan.member))
+        query = Loan.query.options(
+            joinedload(Loan.book),
+            joinedload(Loan.member)
+        )
         
         if status_filter:
             query = query.filter(Loan.status == status_filter)
         
-        loans = query.order_by(Loan.loan_date.desc()).all()
+        loans = query.order_by(Loan.loan_date.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
         
         # Create form and populate choices for admin/librarian
         form = LoanForm()
@@ -690,9 +725,65 @@ def loans():
         form.book_id.choices = [(b.id, f"{b.id} - {b.title}") for b in available_books]
         form.member_id.choices = [(m.id, f"{m.id} - {m.full_name}") for m in active_members]
         
-        current_date = date.today().isoformat()  # Add this line
-        
-        return render_template('loans.html', title='Loan Management', loans=loans, form=form, current_date=current_date)
+        return render_template('loans.html', title='Loan Management', loans=loans, form=form)
+
+@app.route('/loan_details')
+@login_required
+def loan_details():
+    if current_user.role != 'member':
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    book_id = request.args.get('book_id')
+    member_id = request.args.get('member_id')
+    
+    # Verify the member owns these loans
+    member = Member.query.filter_by(user_id=current_user.id).first()
+    if not member or member.id != member_id:
+        flash('Access denied', 'error')
+        return redirect(url_for('loans'))
+    
+    # Get all individual loans for this book
+    loans_list = Loan.query.filter_by(
+        book_id=book_id, 
+        member_id=member_id
+    ).order_by(Loan.loan_date.desc()).all()
+    
+    book = Book.query.get(book_id)
+    
+    # Count active loans for this book
+    active_loans_count = sum(1 for loan in loans_list if loan.return_date is None)
+    
+    return render_template('loan_details.html', 
+                         book=book, 
+                         loans=loans_list, 
+                         active_loans_count=active_loans_count)
+
+@app.route('/get_loan_id')
+@login_required
+def get_loan_id():
+    if current_user.role != 'member':
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    book_id = request.args.get('book_id')
+    member_id = request.args.get('member_id')
+    
+    # Verify the member owns this loan
+    member = Member.query.filter_by(user_id=current_user.id).first()
+    if not member or member.id != member_id:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    # Get the active loan for this book
+    loan = Loan.query.filter_by(
+        book_id=book_id, 
+        member_id=member_id,
+        return_date=None
+    ).first()
+    
+    if loan:
+        return jsonify({'success': True, 'loan_id': loan.id})
+    else:
+        return jsonify({'success': False, 'message': 'No active loan found'})
 
 @app.route('/fines')
 @login_required
@@ -840,41 +931,46 @@ def return_book():
 @app.route('/api/renew_loan', methods=['POST'])
 @login_required
 def renew_loan():
+    if current_user.role != 'member':
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
     loan_id = request.json.get('loan_id')
     loan = Loan.query.get(loan_id)
     
     if not loan:
         return jsonify({'success': False, 'message': 'Loan not found'})
     
-    # Check permissions
-    if current_user.role == 'member':
-        member = Member.query.filter_by(user_id=current_user.id).first()
-        if loan.member_id != member.id:
-            return jsonify({'success': False, 'message': 'Access denied'})
+    if loan.member.user_id != current_user.id:
+        return jsonify({'success': False, 'message': 'Access denied'})
     
-    # Check if already returned
     if loan.return_date:
         return jsonify({'success': False, 'message': 'Book already returned'})
     
-    # Check renewal limit
     if loan.renewed_count >= loan.max_renewals:
         return jsonify({'success': False, 'message': 'Maximum renewals reached'})
     
-    # Check if book has reservations (simplified)
-    # In a real system, you'd check if someone else has reserved this book
+    if loan.is_overdue:
+        return jsonify({'success': False, 'message': 'Cannot renew overdue book'})
+    
+    # NEW: Check if member has multiple copies of this book
+    same_book_loans_count = Loan.query.filter(
+        Loan.member_id == loan.member_id,
+        Loan.book_id == loan.book_id,
+        Loan.return_date.is_(None)
+    ).count()
+    
+    if same_book_loans_count > 1:
+        return jsonify({'success': False, 'message': 'Cannot renew when you have multiple copies of the same book'})
     
     try:
-        # Calculate new due date
-        member = Member.query.get(loan.member_id)
+        # Calculate new due date (extend by original loan period)
+        member = Member.query.filter_by(user_id=current_user.id).first()
         loan_period = get_loan_period(member)
-        new_due_date = loan.due_date + timedelta(days=loan_period)
-        
-        # Update loan
-        loan.due_date = new_due_date
+        loan.due_date = loan.due_date + timedelta(days=loan_period)
         loan.renewed_count += 1
         
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Loan renewed successfully'})
+        return jsonify({'success': True, 'message': 'Loan renewed successfully', 'new_due_date': loan.due_date.strftime('%Y-%m-%d')})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Error renewing loan: {str(e)}'})
