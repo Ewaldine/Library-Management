@@ -1,0 +1,272 @@
+<!-- Create new file: templates/carrells.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-door-closed me-2"></i>Carrell Management
+    </h2>
+</div>
+
+<div class="row">
+    <!-- Add Carrell Form -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Add New Carrell</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_carrell') }}">
+                    {{ form.csrf_token }}
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.location.label(class="form-label") }}
+                        {{ form.location(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.capacity.label(class="form-label") }}
+                        {{ form.capacity(class="form-control") }}
+                    </div>
+                    {{ form.submit(class="btn btn-success w-100") }}
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Rental Form -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-key me-2"></i>Create Carrell Rental</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('create_carrell_rental') }}">
+                    {{ rental_form.csrf_token }}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ rental_form.carrell_id.label(class="form-label") }}
+                                {{ rental_form.carrell_id(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ rental_form.member_id.label(class="form-label") }}
+                                {{ rental_form.member_id(class="form-control") }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        {{ rental_form.duration_hours.label(class="form-label") }}
+                        {{ rental_form.duration_hours(class="form-control") }}
+                    </div>
+                    {{ rental_form.submit(class="btn btn-success w-100") }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Rentals -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Active Carrell Rentals</h5>
+    </div>
+    <div class="card-body">
+        {% if active_rentals %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Carrell</th>
+                        <th>Member</th>
+                        <th>Start Time</th>
+                        <th>Scheduled End</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rental in active_rentals %}
+                    <tr>
+                        <td>
+                            <strong>{{ rental.carrell.name }}</strong><br>
+                            <small class="text-muted">{{ rental.carrell.location }}</small>
+                        </td>
+                        <td>
+                            <strong>{{ rental.member.id }}</strong><br>
+                            <small class="text-muted">{{ rental.member.full_name }}</small>
+                        </td>
+                        <td>{{ rental.rental_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ rental.scheduled_end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if rental.status == 'active' else 'warning' }}">
+                                {{ rental.status|title }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary end-rental-btn" 
+                                        data-rental-id="{{ rental.id }}"
+                                        data-member-id="{{ rental.member.id }}"
+                                        data-member-name="{{ rental.member.full_name }}">
+                                    <i class="fas fa-stop me-1"></i>End Rental
+                                </button>
+                                <button class="btn btn-sm btn-warning noise-fine-btn"
+                                        data-member-id="{{ rental.member.id }}"
+                                        data-member-name="{{ rental.member.full_name }}">
+                                    <i class="fas fa-volume-up me-1"></i>Noise Fine
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <i class="fas fa-door-open fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No Active Rentals</h5>
+            <p class="text-muted">There are no active carrell rentals at the moment.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Carrell List -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-door-closed me-2"></i>All Carrells</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for carrell in carrells %}
+            <div class="col-md-4 mb-3">
+                <div class="card {{ 'border-success' if carrell.is_available else 'border-warning' }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ carrell.name }}</h5>
+                        <p class="card-text">
+                            <small class="text-muted">{{ carrell.location }}</small><br>
+                            Capacity: {{ carrell.capacity }} person(s)
+                        </p>
+                        <span class="badge bg-{{ 'success' if carrell.is_available else 'warning' }}">
+                            {{ 'Available' if carrell.is_available else 'Occupied' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // End rental functionality
+    const endRentalButtons = document.querySelectorAll('.end-rental-btn');
+    endRentalButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const rentalId = this.getAttribute('data-rental-id');
+            const memberName = this.getAttribute('data-member-name');
+            
+            // Ask about key return
+            const keyReturned = confirm(`Did ${memberName} return the key? Click OK for Yes, Cancel for No.`);
+            
+            const button = this;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Ending...';
+            button.disabled = true;
+            
+            fetch('{{ url_for("end_carrell_rental") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    rental_id: rentalId,
+                    key_returned: keyReturned
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-stop me-1"></i>End Rental';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                showAlert('error', 'Network error. Please try again.');
+                button.innerHTML = '<i class="fas fa-stop me-1"></i>End Rental';
+                button.disabled = false;
+            });
+        });
+    });
+    
+    // Noise fine functionality
+    const noiseFineButtons = document.querySelectorAll('.noise-fine-btn');
+    noiseFineButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const memberId = this.getAttribute('data-member-id');
+            const memberName = this.getAttribute('data-member-name');
+            
+            if (confirm(`Add $25 noise fine to ${memberName}?`)) {
+                const button = this;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Adding...';
+                button.disabled = true;
+                
+                fetch('{{ url_for("add_noise_fine") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        member_id: memberId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert('success', data.message);
+                    } else {
+                        showAlert('error', data.message);
+                    button.innerHTML = '<i class="fas fa-volume-up me-1"></i>Noise Fine';
+                        button.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    showAlert('error', 'Network error. Please try again.');
+                    button.innerHTML = '<i class="fas fa-volume-up me-1"></i>Noise Fine';
+                    button.disabled = false;
+                });
+            }
+        });
+    });
+    
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.querySelector('.mb-4').appendChild(alertDiv);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}

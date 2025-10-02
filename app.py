@@ -188,6 +188,56 @@ class Fine(db.Model):
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+
+class Carrell(db.Model):
+    id = db.Column(db.String(10), primary_key=True)
+    name = db.Column(db.String(100), nullable=False)  # e.g., "Carrell A1"
+    location = db.Column(db.String(200), nullable=False)
+    capacity = db.Column(db.Integer, nullable=False, default=1)
+    is_available = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Current rental information
+    current_rental_id = db.Column(db.Integer, db.ForeignKey('carrell_rental.id'))
+    
+    # Use primaryjoin to specify the exact relationship
+    current_rental = db.relationship('CarrellRental', 
+                                   foreign_keys=[current_rental_id],
+                                   post_update=True,
+                                   backref='current_carrell')
+
+
+class CarrellRental(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    carrell_id = db.Column(db.String(10), db.ForeignKey('carrell.id'), nullable=False)
+    member_id = db.Column(db.String(10), db.ForeignKey('member.id'), nullable=False)
+    
+    rental_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    scheduled_end_time = db.Column(db.DateTime, nullable=False)
+    actual_end_time = db.Column(db.DateTime)
+    
+    # Status: active, completed, overdue
+    status = db.Column(db.String(20), nullable=False, default='active')
+    
+    # Key management
+    key_returned = db.Column(db.Boolean, nullable=False, default=False)
+    key_return_time = db.Column(db.DateTime)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships - explicitly specify foreign_keys
+    carrell = db.relationship('Carrell', 
+                            foreign_keys=[carrell_id],
+                            backref=db.backref('rentals', lazy=True))
+    member = db.relationship('Member', 
+                           foreign_keys=[member_id],
+                           backref=db.backref('carrell_rentals', lazy=True))
+
+# Update the Fine model to include new fine types
+# Add to the existing Fine model (modify the reason choices comment)
+# reason: overdue, damage, lost, noise, key_not_returned
+
 # Forms
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=50)], 
@@ -287,6 +337,9 @@ class CategoryForm(FlaskForm):
                           render_kw={"class": "form-control"})
     submit = SubmitField('Add Category', render_kw={"class": "btn btn-success"})
 
+# Add these form definitions to the forms section (after the existing forms)
+
+
 class LoanForm(FlaskForm):
     book_id = SelectField('Book', coerce=str, validators=[DataRequired()],
                         render_kw={"class": "form-control"})
@@ -299,6 +352,24 @@ class LoanForm(FlaskForm):
     def validate_due_date(self, field):
         if field.data and field.data < date.today():
             raise ValidationError('Due date cannot be in the past.')
+
+class CarrellRentalForm(FlaskForm):
+    carrell_id = SelectField('Carrell', coerce=str, validators=[DataRequired()],
+                           render_kw={"class": "form-control"})
+    member_id = SelectField('Member', coerce=str, validators=[DataRequired()],
+                          render_kw={"class": "form-control"})
+    duration_hours = SelectField('Duration', choices=[(3, '3 Hours')], coerce=int,
+                               render_kw={"class": "form-control"})
+    submit = SubmitField('Create Rental', render_kw={"class": "btn btn-success"})
+
+class CarrellForm(FlaskForm):
+    name = StringField('Carrell Name', validators=[DataRequired(), Length(max=100)],
+                      render_kw={"placeholder": "Enter carrell name", "class": "form-control"})
+    location = StringField('Location', validators=[DataRequired(), Length(max=200)],
+                         render_kw={"placeholder": "Enter location", "class": "form-control"})
+    capacity = IntegerField('Capacity', validators=[DataRequired(), NumberRange(min=1)],
+                          render_kw={"placeholder": "Enter capacity", "class": "form-control"})
+    submit = SubmitField('Add Carrell', render_kw={"class": "btn btn-success"})
 
 
 # Initialize database
@@ -981,6 +1052,211 @@ def pay_fine():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Error paying fine: {str(e)}'})
+
+# Add to routes section
+
+# In the carrells route, update the active_rentals query
+@app.route('/carrells')
+@login_required
+def carrells():
+    if current_user.role not in ['admin', 'librarian']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    carrells_list = Carrell.query.all()
+    active_rentals = CarrellRental.query.filter_by(status='active').options(
+        joinedload(CarrellRental.member), 
+        joinedload(CarrellRental.carrell)
+    ).all()
+    
+    form = CarrellForm()
+    rental_form = CarrellRentalForm()
+    
+    # Update choices
+    available_carrells = Carrell.query.filter_by(is_available=True).all()
+    active_members = Member.query.filter_by(membership_status='active').all()
+    
+    rental_form.carrell_id.choices = [(c.id, f"{c.name} - {c.location}") for c in available_carrells]
+    rental_form.member_id.choices = [(m.id, f"{m.id} - {m.full_name}") for m in active_members]
+    
+    return render_template('carrells.html', 
+                         title='Carrell Management',
+                         carrells=carrells_list,
+                         active_rentals=active_rentals,
+                         form=form,
+                         rental_form=rental_form)
+
+@app.route('/add_carrell', methods=['POST'])
+@login_required
+def add_carrell():
+    if current_user.role not in ['admin', 'librarian']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    form = CarrellForm()
+    if form.validate_on_submit():
+        try:
+            # Generate carrell ID
+            carrell_count = Carrell.query.count()
+            new_id = f'C{carrell_count + 1:04d}'
+            
+            new_carrell = Carrell(
+                id=new_id,
+                name=form.name.data,
+                location=form.location.data,
+                capacity=form.capacity.data
+            )
+            db.session.add(new_carrell)
+            db.session.commit()
+            
+            flash('Carrell added successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding carrell: {str(e)}', 'error')
+    
+    return redirect(url_for('carrells'))
+
+# Update the create_carrell_rental function
+@app.route('/create_carrell_rental', methods=['POST'])
+@login_required
+def create_carrell_rental():
+    if current_user.role not in ['admin', 'librarian']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    form = CarrellRentalForm()
+    
+    # Update choices dynamically
+    available_carrells = Carrell.query.filter_by(is_available=True).all()
+    active_members = Member.query.filter_by(membership_status='active').all()
+    
+    form.carrell_id.choices = [(c.id, f"{c.name} - {c.location}") for c in available_carrells]
+    form.member_id.choices = [(m.id, f"{m.id} - {m.full_name}") for m in active_members]
+    
+    if form.validate_on_submit():
+        carrell_id = form.carrell_id.data
+        member_id = form.member_id.data
+        duration_hours = form.duration_hours.data
+        
+        carrell = Carrell.query.get(carrell_id)
+        member = Member.query.get(member_id)
+        
+        if not carrell or not member:
+            flash('Carrell or member not found', 'error')
+            return redirect(url_for('carrells'))
+        
+        if not carrell.is_available:
+            flash('Carrell is not available', 'error')
+            return redirect(url_for('carrells'))
+        
+        try:
+            # Calculate end time
+            start_time = datetime.utcnow()
+            end_time = start_time + timedelta(hours=duration_hours)
+            
+            # Create rental
+            new_rental = CarrellRental(
+                carrell_id=carrell_id,
+                member_id=member_id,
+                scheduled_end_time=end_time
+            )
+            db.session.add(new_rental)
+            db.session.flush()  # Get the rental ID
+            
+            # Update carrell availability
+            carrell.is_available = False
+            carrell.current_rental_id = new_rental.id
+            
+            db.session.commit()
+            flash('Carrell rental created successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating carrell rental: {str(e)}', 'error')
+    
+    return redirect(url_for('carrells'))
+
+# Update the end_carrell_rental function
+@app.route('/end_carrell_rental', methods=['POST'])
+@login_required
+def end_carrell_rental():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        rental_id = request.json.get('rental_id')
+        key_returned = request.json.get('key_returned', True)
+        
+        rental = CarrellRental.query.get(rental_id)
+        if not rental:
+            return jsonify({'success': False, 'message': 'Rental not found'})
+        
+        # Update rental
+        rental.actual_end_time = datetime.utcnow()
+        rental.status = 'completed'
+        rental.key_returned = key_returned
+        rental.key_return_time = datetime.utcnow() if key_returned else None
+        
+        # Update carrell availability
+        carrell = Carrell.query.get(rental.carrell_id)
+        carrell.is_available = True
+        carrell.current_rental_id = None
+        
+        # Check for key return fine
+        if not key_returned:
+            key_fine = Fine(
+                member_id=rental.member_id,
+                amount=10.00,  # $10 fine for not returning key
+                reason='key_not_returned',
+                issued_date=datetime.utcnow()
+            )
+            db.session.add(key_fine)
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Carrell rental ended successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error ending rental: {str(e)}'})
+
+
+@app.route('/add_noise_fine', methods=['POST'])
+@login_required
+def add_noise_fine():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        member_id = request.json.get('member_id')
+        amount = 25.00  # $25 fine for noise
+        
+        member = Member.query.get(member_id)
+        if not member:
+            return jsonify({'success': False, 'message': 'Member not found'})
+        
+        # Check if member has an active carrell rental
+        active_rental = CarrellRental.query.filter_by(
+            member_id=member_id, 
+            status='active'
+        ).first()
+        
+        if not active_rental:
+            return jsonify({'success': False, 'message': 'Member does not have an active carrell rental'})
+        
+        # Create noise fine
+        noise_fine = Fine(
+            member_id=member_id,
+            amount=amount,
+            reason='noise',
+            issued_date=datetime.utcnow()
+        )
+        db.session.add(noise_fine)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Noise fine of ${amount:.2f} added successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error adding noise fine: {str(e)}'})
 
 # Administrative Routes
 @app.route('/add_member', methods=['POST'])
