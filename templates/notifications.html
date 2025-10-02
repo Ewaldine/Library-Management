@@ -1,0 +1,167 @@
+<!-- Create new file: templates/notifications.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-bell me-2"></i>My Notifications
+    </h2>
+    <div>
+        <button class="btn btn-outline-secondary" id="markAllReadBtn">
+            <i class="fas fa-check-double me-2"></i>Mark All as Read
+        </button>
+        <button class="btn btn-outline-primary" id="checkNotificationsBtn">
+            <i class="fas fa-sync me-2"></i>Check for New Notifications
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>Notification History
+            <span class="badge bg-primary ms-2" id="unreadCount">
+                {{ notifications|selectattr('is_read', 'equalto', false)|list|length }} unread
+            </span>
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if notifications %}
+        <div class="list-group">
+            {% for notification in notifications %}
+            <div class="list-group-item list-group-item-action {% if not notification.is_read %}list-group-item-primary{% endif %}">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">
+                        <i class="fas fa-{{ 'envelope' if not notification.is_read else 'envelope-open' }} me-2 text-{{ 'primary' if not notification.is_read else 'muted' }}"></i>
+                        {{ notification.title }}
+                    </h6>
+                    <small class="text-muted">
+                        {% if notification.sent_time %}
+                            {{ notification.sent_time.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            Scheduled: {{ notification.scheduled_time.strftime('%Y-%m-%d %H:%M') }}
+                        {% endif %}
+                    </small>
+                </div>
+                <p class="mb-1">{{ notification.message }}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        Type: <span class="badge bg-secondary">{{ notification.notification_type }}</span>
+                    </small>
+                    {% if not notification.is_read %}
+                    <button class="btn btn-sm btn-outline-success mark-read-btn" 
+                            data-notification-id="{{ notification.id }}">
+                        <i class="fas fa-check me-1"></i>Mark as Read
+                    </button>
+                    {% else %}
+                    <small class="text-success">
+                        <i class="fas fa-check me-1"></i>Read
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No Notifications</h5>
+            <p class="text-muted">You don't have any notifications at the moment.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Mark notification as read
+    const markReadButtons = document.querySelectorAll('.mark-read-btn');
+    markReadButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const notificationId = this.getAttribute('data-notification-id');
+            const button = this;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>';
+            button.disabled = true;
+            
+            fetch('{{ url_for("mark_notification_read") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    notification_id: notificationId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update UI
+                    const listItem = button.closest('.list-group-item');
+                    listItem.classList.remove('list-group-item-primary');
+                    listItem.classList.add('list-group-item-light');
+                    
+                    // Update badge and button
+                    const badge = listItem.querySelector('.fa-envelope');
+                    badge.classList.remove('fa-envelope', 'text-primary');
+                    badge.classList.add('fa-envelope-open', 'text-muted');
+                    
+                    button.outerHTML = '<small class="text-success"><i class="fas fa-check me-1"></i>Read</small>';
+                    
+                    // Update unread count
+                    updateUnreadCount();
+                }
+            });
+        });
+    });
+    
+    // Mark all as read
+    document.getElementById('markAllReadBtn').addEventListener('click', function() {
+        const unreadButtons = document.querySelectorAll('.mark-read-btn');
+        unreadButtons.forEach(button => {
+            button.click();
+        });
+    });
+    
+    // Check for new notifications
+    document.getElementById('checkNotificationsBtn').addEventListener('click', function() {
+        const button = this;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Checking...';
+        button.disabled = true;
+        
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    });
+    
+    function updateUnreadCount() {
+        const unreadCount = document.querySelectorAll('.mark-read-btn').length;
+        document.getElementById('unreadCount').textContent = unreadCount + ' unread';
+        
+        if (unreadCount === 0) {
+            document.getElementById('unreadCount').classList.remove('bg-primary');
+            document.getElementById('unreadCount').classList.add('bg-success');
+        }
+    }
+    
+    // Update notification count in navbar periodically
+    function updateNotificationBadge() {
+        fetch('{{ url_for("notification_count") }}')
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById('notificationBadge');
+                if (badge) {
+                    badge.textContent = data.count;
+                    badge.style.display = data.count > 0 ? 'inline' : 'none';
+                }
+            });
+    }
+    
+    // Update every 30 seconds
+    setInterval(updateNotificationBadge, 30000);
+    updateNotificationBadge(); // Initial call
+});
+</script>
+{% endblock %}

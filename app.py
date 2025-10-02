@@ -13,6 +13,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
+import threading
+import time
 import io
 import os
 from datetime import date
@@ -187,6 +189,23 @@ class Fine(db.Model):
     status = db.Column(db.String(20), nullable=False, default='pending')
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Add to models section
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    member_id = db.Column(db.String(10), db.ForeignKey('member.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    notification_type = db.Column(db.String(50), nullable=False)  # carrell_reminder, carrell_fine, etc.
+    is_read = db.Column(db.Boolean, nullable=False, default=False)
+    scheduled_time = db.Column(db.DateTime, nullable=False)
+    sent_time = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    member = db.relationship('Member', backref='notifications')
+
+
 
 
 
@@ -407,6 +426,96 @@ def calculate_fine(loan):
     days_overdue = loan.days_overdue
     fine_per_day = 1.0  # $1 per day
     return round(days_overdue * fine_per_day, 2)
+
+
+# Add these helper functions after the existing helper functions
+
+def schedule_carrell_notifications(rental):
+    """Schedule all notifications for a carrell rental"""
+    try:
+        # Calculate notification times
+        scheduled_end = rental.scheduled_end_time
+        one_hour_before = scheduled_end - timedelta(hours=1)
+        thirty_min_before = scheduled_end - timedelta(minutes=30)
+        at_due_time = scheduled_end
+        
+        # Schedule notifications
+        notifications = [
+            {
+                'time': one_hour_before,
+                'title': 'Carrell Rental Reminder - 1 Hour Left',
+                'message': f'Your carrell rental for {rental.carrell.name} will expire in 1 hour. Please return the key on time to avoid fines.',
+                'type': 'carrell_reminder_1h'
+            },
+            {
+                'time': thirty_min_before,
+                'title': 'Carrell Rental Reminder - 30 Minutes Left',
+                'message': f'Your carrell rental for {rental.carrell.name} will expire in 30 minutes. Please prepare to return the key.',
+                'type': 'carrell_reminder_30m'
+            },
+            {
+                'time': at_due_time,
+                'title': 'Carrell Rental Expired - Fine Incurred',
+                'message': f'Your carrell rental for {rental.carrell.name} has expired. A $10 fine has been applied for late key return.',
+                'type': 'carrell_fine_notice'
+            }
+        ]
+        
+        # Create notification records
+        for notif in notifications:
+            notification = Notification(
+                member_id=rental.member_id,
+                title=notif['title'],
+                message=notif['message'],
+                notification_type=notif['type'],
+                scheduled_time=notif['time']
+            )
+            db.session.add(notification)
+        
+        db.session.commit()
+        return True
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error scheduling notifications: {str(e)}")
+        return False
+
+def send_notification(notification):
+    """Send a notification (simulate email/SMS)"""
+    try:
+        # In a real system, you would:
+        # 1. Send email
+        # 2. Send SMS
+        # 3. Send push notification
+        
+        # For now, we'll just mark it as sent and print to console
+        notification.sent_time = datetime.utcnow()
+        db.session.commit()
+        
+        print(f"Notification sent to {notification.member.full_name}: {notification.title}")
+        return True
+        
+    except Exception as e:
+        print(f"Error sending notification: {str(e)}")
+        return False
+
+def check_pending_notifications():
+    """Check and send pending notifications (to be called periodically)"""
+    try:
+        now = datetime.utcnow()
+        pending_notifications = Notification.query.filter(
+            Notification.scheduled_time <= now,
+            Notification.sent_time == None
+        ).all()
+        
+        for notification in pending_notifications:
+            send_notification(notification)
+            
+        return len(pending_notifications)
+        
+    except Exception as e:
+        print(f"Error checking pending notifications: {str(e)}")
+        return 0
 
 def update_overdue_loans():
     """Update status of overdue loans and create fines"""
@@ -1116,6 +1225,123 @@ def add_carrell():
     
     return redirect(url_for('carrells'))
 
+# Add these new routes
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    """Display user notifications"""
+    if current_user.role == 'member':
+        member = Member.query.filter_by(user_id=current_user.id).first()
+        if not member:
+            flash('Member profile not found', 'error')
+            return redirect(url_for('dashboard'))
+        
+        user_notifications = Notification.query.filter_by(
+            member_id=member.id
+        ).order_by(Notification.created_at.desc()).all()
+        
+        return render_template('notifications.html', 
+                             title='My Notifications',
+                             notifications=user_notifications)
+    
+    else:
+        flash('This page is for members only', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/api/notifications/count')
+@login_required
+def notification_count():
+    """Get unread notification count for current user"""
+    if current_user.role == 'member':
+        member = Member.query.filter_by(user_id=current_user.id).first()
+        if member:
+            count = Notification.query.filter_by(
+                member_id=member.id,
+                is_read=False
+            ).count()
+            return jsonify({'count': count})
+    
+    return jsonify({'count': 0})
+
+@app.route('/api/notifications/mark_read', methods=['POST'])
+@login_required
+def mark_notification_read():
+    """Mark a notification as read"""
+    notification_id = request.json.get('notification_id')
+    
+    if current_user.role == 'member':
+        member = Member.query.filter_by(user_id=current_user.id).first()
+        if member:
+            notification = Notification.query.filter_by(
+                id=notification_id,
+                member_id=member.id
+            ).first()
+            
+            if notification:
+                notification.is_read = True
+                db.session.commit()
+                return jsonify({'success': True})
+    
+    return jsonify({'success': False})
+
+def background_notification_checker():
+    """Background thread to check for pending notifications"""
+    while True:
+        try:
+            count = check_pending_notifications()
+            if count > 0:
+                print(f"Sent {count} notifications")
+            time.sleep(60)  # Check every minute
+        except Exception as e:
+            print(f"Error in background notification checker: {str(e)}")
+            time.sleep(60)
+
+# Start the background thread when the app starts
+def start_background_tasks():
+    """Start background tasks"""
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        thread = threading.Thread(target=background_notification_checker, daemon=True)
+        thread.start()
+
+# Call this after app initialization
+with app.app_context():
+    db.create_all()
+    
+    # Create default admin user if not exists
+    if not User.query.filter_by(username='admin').first():
+        admin_user = User(
+            username='admin',
+            password_hash=generate_password_hash('admin123'),
+            role='admin'
+        )
+        db.session.add(admin_user)
+        
+        # Create default librarian
+        librarian_user = User(
+            username='librarian',
+            password_hash=generate_password_hash('librarian123'),
+            role='librarian'
+        )
+        db.session.add(librarian_user)
+        db.session.commit()
+    
+    # Start background tasks
+    start_background_tasks()
+
+@app.route('/api/check_notifications')
+@login_required
+def check_notifications_api():
+    """API endpoint to check and send pending notifications"""
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        count = check_pending_notifications()
+        return jsonify({'success': True, 'notifications_sent': count})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 # Update the create_carrell_rental function
 @app.route('/create_carrell_rental', methods=['POST'])
 @login_required
@@ -1166,6 +1392,9 @@ def create_carrell_rental():
             # Update carrell availability
             carrell.is_available = False
             carrell.current_rental_id = new_rental.id
+            
+            # Schedule notifications
+            schedule_carrell_notifications(new_rental)
             
             db.session.commit()
             flash('Carrell rental created successfully', 'success')
