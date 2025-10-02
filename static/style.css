@@ -1,4 +1,6 @@
-/* Custom styles for University Course Registration System */
+﻿/* ==========================================================================
+   ROOT VARIABLES & GLOBAL STYLES
+   ========================================================================== */
 
 :root {
   --primary-color: #667eea;
@@ -16,7 +18,10 @@ body {
   background-color: var(--light-color);
 }
 
-/* Sidebar Enhancements */
+/* ==========================================================================
+   SIDEBAR STYLES
+   ========================================================================== */
+
 .sidebar {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
@@ -38,7 +43,10 @@ body {
   font-weight: 600;
 }
 
-/* Card Enhancements */
+/* ==========================================================================
+   CARD STYLES
+   ========================================================================== */
+
 .card {
   border-radius: 12px;
   transition: all 0.3s ease;
@@ -58,7 +66,10 @@ body {
   font-weight: 600;
 }
 
-/* Button Enhancements */
+/* ==========================================================================
+   BUTTON STYLES
+   ========================================================================== */
+
 .btn {
   border-radius: 8px;
   font-weight: 500;
@@ -79,7 +90,10 @@ body {
   background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
 }
 
-/* Table Enhancements */
+/* ==========================================================================
+   TABLE STYLES
+   ========================================================================== */
+
 .table {
   border-radius: 8px;
   overflow: hidden;
@@ -102,14 +116,20 @@ body {
   transform: scale(1.01);
 }
 
-/* Badge Enhancements */
+/* ==========================================================================
+   BADGE STYLES
+   ========================================================================== */
+
 .badge {
   border-radius: 6px;
   font-weight: 500;
   padding: 0.5em 0.8em;
 }
 
-/* Progress Bar Enhancements */
+/* ==========================================================================
+   PROGRESS BAR STYLES
+   ========================================================================== */
+
 .progress {
   border-radius: 10px;
   background-color: #e9ecef;
@@ -120,7 +140,10 @@ body {
   background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%);
 }
 
-/* Modal Enhancements */
+/* ==========================================================================
+   MODAL STYLES
+   ========================================================================== */
+
 .modal-content {
   border-radius: 12px;
   border: none;
@@ -137,7 +160,10 @@ body {
   border-radius: 0 0 12px 12px;
 }
 
-/* Form Enhancements */
+/* ==========================================================================
+   FORM STYLES
+   ========================================================================== */
+
 .form-control {
   border-radius: 8px;
   border: 1px solid #ced4da;
@@ -149,7 +175,10 @@ body {
   box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
 }
 
-/* Alert Enhancements */
+/* ==========================================================================
+   ALERT STYLES
+   ========================================================================== */
+
 .alert {
   border-radius: 8px;
   border: none;
@@ -171,12 +200,394 @@ body {
   color: #856404;
 }
 
-/* Login/Register Page Enhancements */
+/* ==========================================================================
+   LOGIN PAGE STYLES
+   ========================================================================== */
+
+body.login-page {
+  position: relative;
+  min-height: 100vh;
+  color: #ffffff;
+  background: url('images/login-background.jpg') no-repeat center center fixed;
+  background-size: cover;
+}
+
+body.login-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 35, 0.78);
+  z-index: 0;
+}
+
+body.login-page nav.navbar {
+  display: none;
+}
+
+body.login-page .container-fluid,
+body.login-page .container-fluid > .row {
+  margin: 0;
+  padding: 0;
+}
+
+body.login-page main {
+  margin-left: 0 !important;
+  width: 100% !important;
+  max-width: 100%;
+  flex: 1 1 auto !important;
+  padding: 0 !important;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+body.login-page main > .mb-4,
+body.login-page main > .d-flex {
+  display: none !important;
+}
+
+body.login-page main > .login-container {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 60px;
+  padding: 40px;
+}
+
+/* Login Welcome Panel */
+body.login-page .welcome-panel {
+  max-width: 480px;
+}
+
+body.login-page .welcome-panel h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 0.75rem;
+}
+
+body.login-page .welcome-panel p {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 0;
+}
+
+/* Login Card */
+body.login-page .login-card {
+  background: rgba(19, 32, 46, 0.92);
+  border-radius: 16px;
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+body.login-page .login-card-title {
+  font-weight: 700;
+  font-size: 1.75rem;
+  text-align: center;
+  color: #ffffff;
+  margin-bottom: 1.25rem;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+body.login-page .login-card-title::after {
+  content: "";
+  position: absolute;
+  left: -40px;
+  right: -40px;
+  bottom: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Login Form Elements */
+body.login-page .login-card .form-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #4fb6ff;
+  margin-bottom: 0.3rem;
+}
+
+body.login-page .login-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0;
+  color: #ffffff;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.2rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.login-page .login-input:focus {
+  border-color: #4fb6ff;
+  box-shadow: 0 2px 0 -1px #4fb6ff;
+}
+
+body.login-page .login-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+body.login-page .form-error {
+  color: #ff7a7a;
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+/* Login Actions */
+body.login-page .login-btn {
+  background: #1f8ac0;
+  border: none;
+  padding: 0.75rem;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  color: #ffffff;
+  margin-top: 0;
+  transition: background 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+body.login-page .login-btn:hover {
+  background: #15678f;
+}
+
+body.login-page .login-meta {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+body.login-page .login-meta a {
+  color: #4fb6ff;
+  text-decoration: none;
+}
+
+body.login-page .login-meta a:hover {
+  text-decoration: underline;
+}
+
+body.login-page .login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+body.login-page .login-field {
+  display: flex;
+  flex-direction: column;
+}
+
+body.login-page .login-actions {
+  margin-top: 0.5rem;
+}
+
+/* ==========================================================================
+   REGISTER PAGE STYLES
+   ========================================================================== */
+
+body.register-page .auth-card {
+  background: rgba(19, 32, 46, 0.92);
+  border-radius: 16px;
+  padding: 36px;
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  min-height: 580px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+  overflow: visible;
+}
+
+body.register-page .auth-card-title {
+  font-weight: 700;
+  font-size: 1.75rem;
+  text-align: center;
+  color: #ffffff;
+  margin-bottom: 1.25rem;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+body.register-page .auth-card-title::after {
+  content: "";
+  position: absolute;
+  left: -36px;
+  right: -36px;
+  bottom: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Register Form Elements */
+body.register-page .auth-card .form-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #4fb6ff;
+  margin-bottom: 0.25rem;
+}
+
+body.register-page .auth-input,
+body.register-page .auth-textarea {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0;
+  color: #ffffff;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.register-page .auth-input:focus,
+body.register-page .auth-textarea:focus {
+  border-color: #4fb6ff;
+  box-shadow: 0 2px 0 -1px #4fb6ff;
+}
+
+body.register-page .auth-input::placeholder,
+body.register-page .auth-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+body.register-page .auth-textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+body.register-page .form-error {
+  color: #ff7a7a;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* Register Form Layout */
+body.register-page .register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+body.register-page .register-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+body.register-page .register-form-grid .full-width {
+  grid-column: 1 / span 2;
+}
+
+/* Register Actions */
+body.register-page .register-btn {
+  background: #1f8ac0;
+  border: none;
+  padding: 0.9rem;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  color: #ffffff;
+  margin-top: 0;
+  transition: background 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+body.register-page .register-btn:hover {
+  background: #15678f;
+}
+
+body.register-page .register-actions {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+body.register-page .register-meta {
+  text-align: center;
+  margin-top: 1rem;
+  color: rgba(255, 255, 255, 0.6);
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.register-page .register-meta a {
+  color: #4fb6ff;
+  text-decoration: none;
+}
+
+body.register-page .register-meta a:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   COMMON AUTH STYLES (Shared by Login & Register)
+   ========================================================================== */
+
+body.login-page .alert-container {
+  margin-bottom: 1rem;
+}
+
+body.login-page .alert-container .alert {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+}
+
+body.login-page .btn-close-white {
+  filter: invert(1);
+}
+
+/* Auth Select Styles */
+body.login-page select.auth-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #ffffff 50%),
+      linear-gradient(135deg, #ffffff 50%, transparent 50%);
+  background-position: calc(100% - 20px) calc(50% - 5px), calc(100% - 15px) calc(50% - 5px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+body.login-page select.auth-select option {
+  color: #0a1423;
+}
+
+/* ==========================================================================
+   DASHBOARD & GENERAL STYLES
+   ========================================================================== */
+
 .vh-100 {
   background: linear-gradient(135deg, var(--light-color) 0%, #e9ecef 100%);
 }
 
-/* Dashboard Stats Cards */
 .stats-card {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
   color: white;
@@ -191,7 +602,40 @@ body {
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
 }
 
-/* Responsive Enhancements */
+/* ==========================================================================
+   RESPONSIVE STYLES
+   ========================================================================== */
+
+@media (max-width: 992px) {
+  body.login-page main > .login-container {
+    flex-direction: column;
+    text-align: center;
+    gap: 40px;
+    padding: 20px;
+  }
+
+  body.login-page .welcome-panel {
+    max-width: 100%;
+  }
+
+  body.login-page .welcome-panel h1 {
+    font-size: 2.4rem;
+  }
+
+  body.login-page .login-card,
+  body.login-page .auth-card {
+    padding: 32px 28px;
+  }
+
+  body.register-page .register-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.register-page .register-form-grid .full-width {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
@@ -218,9 +662,17 @@ body {
   .table-responsive {
     font-size: 0.9rem;
   }
+
+  body.login-page main {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
 }
 
-/* Loading States */
+/* ==========================================================================
+   LOADING STATES
+   ========================================================================== */
+
 .btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
@@ -231,7 +683,10 @@ body {
   height: 1rem;
 }
 
-/* Custom Scrollbar */
+/* ==========================================================================
+   CUSTOM SCROLLBAR
+   ========================================================================== */
+
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -250,7 +705,10 @@ body {
   background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
 }
 
-/* Animation Classes */
+/* ==========================================================================
+   ANIMATIONS
+   ========================================================================== */
+
 .fade-in {
   animation: fadeIn 0.5s ease-in;
 }
@@ -279,7 +737,10 @@ body {
   }
 }
 
-/* Print Styles for Transcripts */
+/* ==========================================================================
+   PRINT STYLES
+   ========================================================================== */
+
 @media print {
   .sidebar,
   .btn,
@@ -297,3 +758,5 @@ body {
     box-shadow: none !important;
   }
 }
+
+

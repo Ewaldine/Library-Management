@@ -1,148 +1,103 @@
 {% extends "base.html" %}
 
+{% block body_class %}login-page register-page{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow">
-            <div class="card-body p-5">
-                <div class="text-center mb-4">
-                    <div class="bg-success rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
-                        <i class="fas fa-user-plus text-white" style="font-size: 2rem;"></i>
-                    </div>
-                    <h2 class="card-title">Member Registration</h2>
-                    <p class="text-muted">Create your library account</p>
+<div class="login-container">
+    <div class="welcome-panel">
+        <h1>Welcome to the Library System</h1>
+        <p>Create your account to manage loans, reservations, and more.</p>
+    </div>
+    <div class="auth-card register-card">
+        <h3 class="auth-card-title">Create Account</h3>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="alert-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'info-circle' }} me-2"></i>{{ message }}
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
                 </div>
-                
-                <form method="POST" action="{{ url_for('register') }}">
-                    {{ form.hidden_tag() }}
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                {{ form.username.label(class="form-label") }}
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-user"></i></span>
-                                    {{ form.username(class="form-control") }}
-                                </div>
-                                {% if form.username.errors %}
-                                    <div class="text-danger small mt-1">
-                                        {% for error in form.username.errors %}
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                {{ form.password.label(class="form-label") }}
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                    {{ form.password(class="form-control") }}
-                                </div>
-                                {% if form.password.errors %}
-                                    <div class="text-danger small mt-1">
-                                        {% for error in form.password.errors %}
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                {{ form.first_name.label(class="form-label") }}
-                                {{ form.first_name(class="form-control") }}
-                                {% if form.first_name.errors %}
-                                    <div class="text-danger small mt-1">
-                                        {% for error in form.first_name.errors %}
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                {{ form.last_name.label(class="form-label") }}
-                                {{ form.last_name(class="form-control") }}
-                                {% if form.last_name.errors %}
-                                    <div class="text-danger small mt-1">
-                                        {% for error in form.last_name.errors %}
-                                            <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        {{ form.email.label(class="form-label") }}
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                            {{ form.email(class="form-control") }}
-                        </div>
-                        {% if form.email.errors %}
-                            <div class="text-danger small mt-1">
-                                {% for error in form.email.errors %}
-                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mb-3">
-                        {{ form.phone.label(class="form-label") }}
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-phone"></i></span>
-                            {{ form.phone(class="form-control") }}
-                        </div>
-                        {% if form.phone.errors %}
-                            <div class="text-danger small mt-1">
-                                {% for error in form.phone.errors %}
-                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mb-3">
-                        {{ form.address.label(class="form-label") }}
-                        {{ form.address(class="form-control") }}
-                        {% if form.address.errors %}
-                            <div class="text-danger small mt-1">
-                                {% for error in form.address.errors %}
-                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mb-4">
-                        {{ form.membership_type.label(class="form-label") }}
-                        {{ form.membership_type(class="form-control") }}
-                        {% if form.membership_type.errors %}
-                            <div class="text-danger small mt-1">
-                                {% for error in form.membership_type.errors %}
-                                    <i class="fas fa-exclamation-circle me-1"></i>{{ error }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="d-grid">
-                        {{ form.submit(class="btn btn-success btn-lg") }}
-                    </div>
-                </form>
-                
-                <div class="text-center mt-4">
-                    <p class="mb-0">Already have an account? <a href="{{ url_for('login') }}" class="text-decoration-none">Login here</a></p>
-                </div>
+            {% endif %}
+        {% endwith %}
+        <form method="POST" action="{{ url_for('register') }}" class="register-form">
+            {{ form.hidden_tag() }}
+            <div class="register-form-grid">
+    <div>
+        {{ form.first_name.label(class="form-label") }}
+        {{ form.first_name(class="form-control auth-input compact-field", placeholder="First Name") }}
+        {% if form.first_name.errors %}
+            <div class="form-error">
+                {% for error in form.first_name.errors %}
+                    {{ error }}
+                {% endfor %}
             </div>
+        {% endif %}
+    </div>
+    <div>
+        {{ form.last_name.label(class="form-label") }}
+        {{ form.last_name(class="form-control auth-input compact-field", placeholder="Last Name") }}
+        {% if form.last_name.errors %}
+            <div class="form-error">
+                {% for error in form.last_name.errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="full-width">
+        {{ form.email.label(class="form-label") }}
+        {{ form.email(class="form-control auth-input compact-field", placeholder="Email Address") }}
+        {% if form.email.errors %}
+            <div class="form-error">
+                {% for error in form.email.errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div>
+        {{ form.phone.label(class="form-label") }}
+        {{ form.phone(class="form-control auth-input compact-field", placeholder="Phone Number") }}
+        {% if form.phone.errors %}
+            <div class="form-error">
+                {% for error in form.phone.errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div>
+        {{ form.password.label(class="form-label") }}
+        {{ form.password(class="form-control auth-input compact-field", placeholder="Password") }}
+        {% if form.password.errors %}
+            <div class="form-error">
+                {% for error in form.password.errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="full-width">
+        {{ form.address.label(class="form-label") }}
+        {{ form.address(class="form-control auth-textarea compact-field", placeholder="Address", rows="2") }}
+        {% if form.address.errors %}
+            <div class="form-error">
+                {% for error in form.address.errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+            <div class="register-actions">
+                {{ form.submit(class="btn register-btn w-100", value="Create Account") }}
+            </div>
+        </form>
+        <div class="register-meta">
+            <span>Already have an account? <a href="{{ url_for('login') }}">Log in here</a></span>
         </div>
     </div>
 </div>
