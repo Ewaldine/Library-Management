@@ -13,6 +13,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
+import threading
+import time
 import io
 import os
 from datetime import date
@@ -188,6 +190,73 @@ class Fine(db.Model):
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+# Add to models section
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    member_id = db.Column(db.String(10), db.ForeignKey('member.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    notification_type = db.Column(db.String(50), nullable=False)  # carrell_reminder, carrell_fine, etc.
+    is_read = db.Column(db.Boolean, nullable=False, default=False)
+    scheduled_time = db.Column(db.DateTime, nullable=False)
+    sent_time = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    member = db.relationship('Member', backref='notifications')
+
+
+
+
+
+class Carrell(db.Model):
+    id = db.Column(db.String(10), primary_key=True)
+    name = db.Column(db.String(100), nullable=False)  # e.g., "Carrell A1"
+    location = db.Column(db.String(200), nullable=False)
+    capacity = db.Column(db.Integer, nullable=False, default=1)
+    is_available = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Current rental information
+    current_rental_id = db.Column(db.Integer, db.ForeignKey('carrell_rental.id'))
+    
+    # Use primaryjoin to specify the exact relationship
+    current_rental = db.relationship('CarrellRental', 
+                                   foreign_keys=[current_rental_id],
+                                   post_update=True,
+                                   backref='current_carrell')
+
+
+class CarrellRental(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    carrell_id = db.Column(db.String(10), db.ForeignKey('carrell.id'), nullable=False)
+    member_id = db.Column(db.String(10), db.ForeignKey('member.id'), nullable=False)
+    
+    rental_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    scheduled_end_time = db.Column(db.DateTime, nullable=False)
+    actual_end_time = db.Column(db.DateTime)
+    
+    # Status: active, completed, overdue
+    status = db.Column(db.String(20), nullable=False, default='active')
+    
+    # Key management
+    key_returned = db.Column(db.Boolean, nullable=False, default=False)
+    key_return_time = db.Column(db.DateTime)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships - explicitly specify foreign_keys
+    carrell = db.relationship('Carrell', 
+                            foreign_keys=[carrell_id],
+                            backref=db.backref('rentals', lazy=True))
+    member = db.relationship('Member', 
+                           foreign_keys=[member_id],
+                           backref=db.backref('carrell_rentals', lazy=True))
+
+# Update the Fine model to include new fine types
+# Add to the existing Fine model (modify the reason choices comment)
+# reason: overdue, damage, lost, noise, key_not_returned
+
 # Forms
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired(), Length(min=4, max=50)], 
@@ -287,6 +356,9 @@ class CategoryForm(FlaskForm):
                           render_kw={"class": "form-control"})
     submit = SubmitField('Add Category', render_kw={"class": "btn btn-success"})
 
+# Add these form definitions to the forms section (after the existing forms)
+
+
 class LoanForm(FlaskForm):
     book_id = SelectField('Book', coerce=str, validators=[DataRequired()],
                         render_kw={"class": "form-control"})
@@ -299,6 +371,24 @@ class LoanForm(FlaskForm):
     def validate_due_date(self, field):
         if field.data and field.data < date.today():
             raise ValidationError('Due date cannot be in the past.')
+
+class CarrellRentalForm(FlaskForm):
+    carrell_id = SelectField('Carrell', coerce=str, validators=[DataRequired()],
+                           render_kw={"class": "form-control"})
+    member_id = SelectField('Member', coerce=str, validators=[DataRequired()],
+                          render_kw={"class": "form-control"})
+    duration_hours = SelectField('Duration', choices=[(3, '3 Hours')], coerce=int,
+                               render_kw={"class": "form-control"})
+    submit = SubmitField('Create Rental', render_kw={"class": "btn btn-success"})
+
+class CarrellForm(FlaskForm):
+    name = StringField('Carrell Name', validators=[DataRequired(), Length(max=100)],
+                      render_kw={"placeholder": "Enter carrell name", "class": "form-control"})
+    location = StringField('Location', validators=[DataRequired(), Length(max=200)],
+                         render_kw={"placeholder": "Enter location", "class": "form-control"})
+    capacity = IntegerField('Capacity', validators=[DataRequired(), NumberRange(min=1)],
+                          render_kw={"placeholder": "Enter capacity", "class": "form-control"})
+    submit = SubmitField('Add Carrell', render_kw={"class": "btn btn-success"})
 
 
 # Initialize database
@@ -336,6 +426,96 @@ def calculate_fine(loan):
     days_overdue = loan.days_overdue
     fine_per_day = 1.0  # $1 per day
     return round(days_overdue * fine_per_day, 2)
+
+
+# Add these helper functions after the existing helper functions
+
+def schedule_carrell_notifications(rental):
+    """Schedule all notifications for a carrell rental"""
+    try:
+        # Calculate notification times
+        scheduled_end = rental.scheduled_end_time
+        one_hour_before = scheduled_end - timedelta(hours=1)
+        thirty_min_before = scheduled_end - timedelta(minutes=30)
+        at_due_time = scheduled_end
+        
+        # Schedule notifications
+        notifications = [
+            {
+                'time': one_hour_before,
+                'title': 'Carrell Rental Reminder - 1 Hour Left',
+                'message': f'Your carrell rental for {rental.carrell.name} will expire in 1 hour. Please return the key on time to avoid fines.',
+                'type': 'carrell_reminder_1h'
+            },
+            {
+                'time': thirty_min_before,
+                'title': 'Carrell Rental Reminder - 30 Minutes Left',
+                'message': f'Your carrell rental for {rental.carrell.name} will expire in 30 minutes. Please prepare to return the key.',
+                'type': 'carrell_reminder_30m'
+            },
+            {
+                'time': at_due_time,
+                'title': 'Carrell Rental Expired - Fine Incurred',
+                'message': f'Your carrell rental for {rental.carrell.name} has expired. A $10 fine has been applied for late key return.',
+                'type': 'carrell_fine_notice'
+            }
+        ]
+        
+        # Create notification records
+        for notif in notifications:
+            notification = Notification(
+                member_id=rental.member_id,
+                title=notif['title'],
+                message=notif['message'],
+                notification_type=notif['type'],
+                scheduled_time=notif['time']
+            )
+            db.session.add(notification)
+        
+        db.session.commit()
+        return True
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error scheduling notifications: {str(e)}")
+        return False
+
+def send_notification(notification):
+    """Send a notification (simulate email/SMS)"""
+    try:
+        # In a real system, you would:
+        # 1. Send email
+        # 2. Send SMS
+        # 3. Send push notification
+        
+        # For now, we'll just mark it as sent and print to console
+        notification.sent_time = datetime.utcnow()
+        db.session.commit()
+        
+        print(f"Notification sent to {notification.member.full_name}: {notification.title}")
+        return True
+        
+    except Exception as e:
+        print(f"Error sending notification: {str(e)}")
+        return False
+
+def check_pending_notifications():
+    """Check and send pending notifications (to be called periodically)"""
+    try:
+        now = datetime.utcnow()
+        pending_notifications = Notification.query.filter(
+            Notification.scheduled_time <= now,
+            Notification.sent_time == None
+        ).all()
+        
+        for notification in pending_notifications:
+            send_notification(notification)
+            
+        return len(pending_notifications)
+        
+    except Exception as e:
+        print(f"Error checking pending notifications: {str(e)}")
+        return 0
 
 def update_overdue_loans():
     """Update status of overdue loans and create fines"""
@@ -981,6 +1161,331 @@ def pay_fine():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Error paying fine: {str(e)}'})
+
+# Add to routes section
+
+# In the carrells route, update the active_rentals query
+@app.route('/carrells')
+@login_required
+def carrells():
+    if current_user.role not in ['admin', 'librarian']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    carrells_list = Carrell.query.all()
+    active_rentals = CarrellRental.query.filter_by(status='active').options(
+        joinedload(CarrellRental.member), 
+        joinedload(CarrellRental.carrell)
+    ).all()
+    
+    form = CarrellForm()
+    rental_form = CarrellRentalForm()
+    
+    # Update choices
+    available_carrells = Carrell.query.filter_by(is_available=True).all()
+    active_members = Member.query.filter_by(membership_status='active').all()
+    
+    rental_form.carrell_id.choices = [(c.id, f"{c.name} - {c.location}") for c in available_carrells]
+    rental_form.member_id.choices = [(m.id, f"{m.id} - {m.full_name}") for m in active_members]
+    
+    return render_template('carrells.html', 
+                         title='Carrell Management',
+                         carrells=carrells_list,
+                         active_rentals=active_rentals,
+                         form=form,
+                         rental_form=rental_form)
+
+@app.route('/add_carrell', methods=['POST'])
+@login_required
+def add_carrell():
+    if current_user.role not in ['admin', 'librarian']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    form = CarrellForm()
+    if form.validate_on_submit():
+        try:
+            # Generate carrell ID
+            carrell_count = Carrell.query.count()
+            new_id = f'C{carrell_count + 1:04d}'
+            
+            new_carrell = Carrell(
+                id=new_id,
+                name=form.name.data,
+                location=form.location.data,
+                capacity=form.capacity.data
+            )
+            db.session.add(new_carrell)
+            db.session.commit()
+            
+            flash('Carrell added successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding carrell: {str(e)}', 'error')
+    
+    return redirect(url_for('carrells'))
+
+# Add these new routes
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    """Display user notifications"""
+    if current_user.role == 'member':
+        member = Member.query.filter_by(user_id=current_user.id).first()
+        if not member:
+            flash('Member profile not found', 'error')
+            return redirect(url_for('dashboard'))
+        
+        user_notifications = Notification.query.filter_by(
+            member_id=member.id
+        ).order_by(Notification.created_at.desc()).all()
+        
+        return render_template('notifications.html', 
+                             title='My Notifications',
+                             notifications=user_notifications)
+    
+    else:
+        flash('This page is for members only', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/api/notifications/count')
+@login_required
+def notification_count():
+    """Get unread notification count for current user"""
+    if current_user.role == 'member':
+        member = Member.query.filter_by(user_id=current_user.id).first()
+        if member:
+            count = Notification.query.filter_by(
+                member_id=member.id,
+                is_read=False
+            ).count()
+            return jsonify({'count': count})
+    
+    return jsonify({'count': 0})
+
+@app.route('/api/notifications/mark_read', methods=['POST'])
+@login_required
+def mark_notification_read():
+    """Mark a notification as read"""
+    notification_id = request.json.get('notification_id')
+    
+    if current_user.role == 'member':
+        member = Member.query.filter_by(user_id=current_user.id).first()
+        if member:
+            notification = Notification.query.filter_by(
+                id=notification_id,
+                member_id=member.id
+            ).first()
+            
+            if notification:
+                notification.is_read = True
+                db.session.commit()
+                return jsonify({'success': True})
+    
+    return jsonify({'success': False})
+
+def background_notification_checker():
+    """Background thread to check for pending notifications"""
+    while True:
+        try:
+            count = check_pending_notifications()
+            if count > 0:
+                print(f"Sent {count} notifications")
+            time.sleep(60)  # Check every minute
+        except Exception as e:
+            print(f"Error in background notification checker: {str(e)}")
+            time.sleep(60)
+
+# Start the background thread when the app starts
+def start_background_tasks():
+    """Start background tasks"""
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        thread = threading.Thread(target=background_notification_checker, daemon=True)
+        thread.start()
+
+# Call this after app initialization
+with app.app_context():
+    db.create_all()
+    
+    # Create default admin user if not exists
+    if not User.query.filter_by(username='admin').first():
+        admin_user = User(
+            username='admin',
+            password_hash=generate_password_hash('admin123'),
+            role='admin'
+        )
+        db.session.add(admin_user)
+        
+        # Create default librarian
+        librarian_user = User(
+            username='librarian',
+            password_hash=generate_password_hash('librarian123'),
+            role='librarian'
+        )
+        db.session.add(librarian_user)
+        db.session.commit()
+    
+    # Start background tasks
+    start_background_tasks()
+
+@app.route('/api/check_notifications')
+@login_required
+def check_notifications_api():
+    """API endpoint to check and send pending notifications"""
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        count = check_pending_notifications()
+        return jsonify({'success': True, 'notifications_sent': count})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# Update the create_carrell_rental function
+@app.route('/create_carrell_rental', methods=['POST'])
+@login_required
+def create_carrell_rental():
+    if current_user.role not in ['admin', 'librarian']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    form = CarrellRentalForm()
+    
+    # Update choices dynamically
+    available_carrells = Carrell.query.filter_by(is_available=True).all()
+    active_members = Member.query.filter_by(membership_status='active').all()
+    
+    form.carrell_id.choices = [(c.id, f"{c.name} - {c.location}") for c in available_carrells]
+    form.member_id.choices = [(m.id, f"{m.id} - {m.full_name}") for m in active_members]
+    
+    if form.validate_on_submit():
+        carrell_id = form.carrell_id.data
+        member_id = form.member_id.data
+        duration_hours = form.duration_hours.data
+        
+        carrell = Carrell.query.get(carrell_id)
+        member = Member.query.get(member_id)
+        
+        if not carrell or not member:
+            flash('Carrell or member not found', 'error')
+            return redirect(url_for('carrells'))
+        
+        if not carrell.is_available:
+            flash('Carrell is not available', 'error')
+            return redirect(url_for('carrells'))
+        
+        try:
+            # Calculate end time
+            start_time = datetime.utcnow()
+            end_time = start_time + timedelta(hours=duration_hours)
+            
+            # Create rental
+            new_rental = CarrellRental(
+                carrell_id=carrell_id,
+                member_id=member_id,
+                scheduled_end_time=end_time
+            )
+            db.session.add(new_rental)
+            db.session.flush()  # Get the rental ID
+            
+            # Update carrell availability
+            carrell.is_available = False
+            carrell.current_rental_id = new_rental.id
+            
+            # Schedule notifications
+            schedule_carrell_notifications(new_rental)
+            
+            db.session.commit()
+            flash('Carrell rental created successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating carrell rental: {str(e)}', 'error')
+    
+    return redirect(url_for('carrells'))
+
+# Update the end_carrell_rental function
+@app.route('/end_carrell_rental', methods=['POST'])
+@login_required
+def end_carrell_rental():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        rental_id = request.json.get('rental_id')
+        key_returned = request.json.get('key_returned', True)
+        
+        rental = CarrellRental.query.get(rental_id)
+        if not rental:
+            return jsonify({'success': False, 'message': 'Rental not found'})
+        
+        # Update rental
+        rental.actual_end_time = datetime.utcnow()
+        rental.status = 'completed'
+        rental.key_returned = key_returned
+        rental.key_return_time = datetime.utcnow() if key_returned else None
+        
+        # Update carrell availability
+        carrell = Carrell.query.get(rental.carrell_id)
+        carrell.is_available = True
+        carrell.current_rental_id = None
+        
+        # Check for key return fine
+        if not key_returned:
+            key_fine = Fine(
+                member_id=rental.member_id,
+                amount=10.00,  # $10 fine for not returning key
+                reason='key_not_returned',
+                issued_date=datetime.utcnow()
+            )
+            db.session.add(key_fine)
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Carrell rental ended successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error ending rental: {str(e)}'})
+
+
+@app.route('/add_noise_fine', methods=['POST'])
+@login_required
+def add_noise_fine():
+    if current_user.role not in ['admin', 'librarian']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    try:
+        member_id = request.json.get('member_id')
+        amount = 25.00  # $25 fine for noise
+        
+        member = Member.query.get(member_id)
+        if not member:
+            return jsonify({'success': False, 'message': 'Member not found'})
+        
+        # Check if member has an active carrell rental
+        active_rental = CarrellRental.query.filter_by(
+            member_id=member_id, 
+            status='active'
+        ).first()
+        
+        if not active_rental:
+            return jsonify({'success': False, 'message': 'Member does not have an active carrell rental'})
+        
+        # Create noise fine
+        noise_fine = Fine(
+            member_id=member_id,
+            amount=amount,
+            reason='noise',
+            issued_date=datetime.utcnow()
+        )
+        db.session.add(noise_fine)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Noise fine of ${amount:.2f} added successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Error adding noise fine: {str(e)}'})
 
 # Administrative Routes
 @app.route('/add_member', methods=['POST'])
