@@ -689,43 +689,20 @@ def delete_book():
 @app.route('/loans')
 @login_required
 def loans():
-    page = request.args.get('page', 1, type=int)
-    per_page = 15
-    
+    form = LoanForm()
+    loans = Loan.query.options(joinedload(Loan.book), joinedload(Loan.member)).all()
+
+    member = None
     if current_user.role == 'member':
         member = Member.query.filter_by(user_id=current_user.id).first()
-        if member:
-            query = Loan.query.filter_by(member_id=member.id).options(
-                joinedload(Loan.book),
-                joinedload(Loan.member)
-            ).order_by(Loan.loan_date.desc())
-            
-            loans = query.paginate(page=page, per_page=per_page, error_out=False)
-            return render_template('loans.html', title='My Loans', loans=loans, member=member)
-    
-    else:
-        status_filter = request.args.get('status', '')
-        query = Loan.query.options(
-            joinedload(Loan.book),
-            joinedload(Loan.member)
-        )
-        
-        if status_filter:
-            query = query.filter(Loan.status == status_filter)
-        
-        loans = query.order_by(Loan.loan_date.desc()).paginate(
-            page=page, per_page=per_page, error_out=False
-        )
-        
-        # Create form and populate choices for admin/librarian
-        form = LoanForm()
-        available_books = Book.query.filter(Book.available_copies > 0).all()
-        active_members = Member.query.filter(Member.membership_status == 'active').all()
-        
-        form.book_id.choices = [(b.id, f"{b.id} - {b.title}") for b in available_books]
-        form.member_id.choices = [(m.id, f"{m.id} - {m.full_name}") for m in active_members]
-        
-        return render_template('loans.html', title='Loan Management', loans=loans, form=form)
+
+    return render_template(
+        'loans.html',
+        title='Loan Management',
+        loans=loans,
+        form=form,
+        member=member  
+    )
 
 @app.route('/loan_details')
 @login_required
