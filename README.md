@@ -87,7 +87,7 @@ A comprehensive web-based library management system built with Flask that handle
 * Virtual environment (recommended)
 #### i. Clone the repo
 ```bash
-git clone https://github.com/yourusername/library-management-system.git
+git clone https://github.com/Ewaldine/Library-Management.git
 cd library-management-system
 ```
 #### ii. Create Virtual Environment
